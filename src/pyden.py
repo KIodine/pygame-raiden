@@ -14,7 +14,7 @@ try:
 except:
     raise
 
-# Interstellar simulator 2017 ver. 0.1
+# Interstellar simulator 2017 ver. 0.7
 
 rdgray = lambda: random.choice(cfg.gray_scale_range)
 rdyellow = lambda: random.choice(cfg.yellow_range)
@@ -56,8 +56,8 @@ font = pygame.font.Font('fonts/msjh.ttf', 24)
 
 screct = screen.get_rect()
 
-shooting_sfx = pygame.mixer.Sound(sound_file)
-shooting_sfx.set_volume(volume_ratio)
+##shooting_sfx = pygame.mixer.Sound(sound_file)
+##shooting_sfx.set_volume(volume_ratio)
 
 ##pygame.mixer.music.load(bgm)
 ##pygame.mixer.music.set_volume(volume_ratio)
@@ -72,6 +72,7 @@ def show_text(text, x, y):
         except:
             raise
     text = font.render(text, True, (255, 255, 255))
+##    print(dir(text))
     screen.blit(text, (x, y))
 
 class SnowFlake(pygame.sprite.Sprite):
@@ -143,8 +144,8 @@ class Hitbox(pygame.sprite.Sprite):
         self.fire_rate = 70 # ms
         self.last_fire = pygame.time.get_ticks()
 
-        self.fire_sfx = shooting_sfx
-        self.fire_sfx.set_volume(volume_ratio)
+##        self.fire_sfx = shooting_sfx
+##        self.fire_sfx.set_volume(volume_ratio)
 
         self._last_setdest = pygame.time.get_ticks()
 
@@ -182,7 +183,7 @@ class Hitbox(pygame.sprite.Sprite):
         else:
             self.last_fire = fire_now
         
-        self.fire_sfx.stop()
+##        self.fire_sfx.stop()
         ctx = self.rect.centerx
         top = self.rect.top
         shift = self.bullet_shift
@@ -191,7 +192,7 @@ class Hitbox(pygame.sprite.Sprite):
             bullet_obj = Bullet(
                 ctx, self.rect.bottom + shift, direct='DOWN', size='L')
         group.add(bullet_obj)
-        self.fire_sfx.play()
+##        self.fire_sfx.play()
         return None
 
     def update(self):
@@ -303,9 +304,100 @@ RUN_FLAG = True
 
 ##pygame.mixer.music.play(-1, 0.0)
 
+#---------------------------------------------------------------------
+'''Fade in and fade out.'''
+
+msjh = 'fonts/msjh.ttf'
+cap_font = pygame.font.Font(msjh, 120)
+sub_font = pygame.font.Font(msjh, 24)
+cap = "Pyden 2017"
+sub = "Studio WHaTeVeR proudly present"
+
+screen_rect = screen.get_rect()
+
+cap_x, cap_y = screen_rect.center
+sub_x, sub_y = cap_x, cap_y + 100
+
+clock = pygame.time.Clock()
+
+def show_cap(text, x, y, trans, font=cap_font):
+    if not isinstance(text, str):
+        try:
+            text = str(text)
+        except:
+            raise
+    text = font.render(text, True, (trans, trans, trans))
+    text_x, text_y = text.get_size()
+    print('text_xy', text_x, text_y)
+    screen.blit(text, (x - text_x / 2, y - text_y / 2))
+    print(trans)
+
+play_caption = True
+
+stay_interval = 1.5
+
+init_trans = 0
+
+fade_in_phase = True
+fade_out_phase = False
+
+if play_caption:
+    trans = init_trans
+    while fade_in_phase:
+        clock.tick(FPS)
+        show_cap( # Use functools.partial to shorten.
+            cap,
+            cap_x,
+            cap_y,
+            trans=trans)
+        show_cap(
+            sub,
+            sub_x,
+            sub_y,
+            trans=trans,
+            font=sub_font
+            )
+        trans += 11
+        if trans >= 255:
+            trans = 255
+            fade_in_phase = False
+            fade_out_phase = True
+        pygame.display.flip()
+            
+    time.sleep(stay_interval) # Pause gameplay.
+
+    while fade_out_phase:
+        clock.tick(FPS)
+        show_cap(
+            cap,
+            cap_x,
+            cap_y,
+            trans=trans)
+        show_cap(
+            sub,
+            sub_x,
+            sub_y,
+            trans=trans,
+            font=sub_font
+            )
+        trans -= 15
+        if trans <= 0:
+            trans = 0
+            fade_out_phase = False
+        pygame.display.flip()
+    screen.fill(BLACK)
+    pygame.display.flip()
+    time.sleep(0.7)
+    
+    print("CAP SHOWN")
+
+#---------------------------------------------------------------------
+
 hits = 0
 e_hits = 0
 score = 0
+
+show_death = True
 
 while RUN_FLAG:
     CLOCK.tick(FPS)
@@ -387,6 +479,9 @@ while RUN_FLAG:
             enemy_bullet_group.remove(ebullet)
             e_hits += 1
 
+            if e_hits >= 5:
+                RUN_FLAG = False
+
     # Print elapsed time (ms) on screen
     elapsed_time = '{:.3f} seconds'.format(
         pygame.time.get_ticks() / 1000
@@ -395,9 +490,18 @@ while RUN_FLAG:
     show_text(f'hits: {hits}', 5, screct.bottom - 30)
     show_text(f'score: {score}', 5, 30 + 5)
     show_text(f'Enemy_hits: {e_hits}', screct.right - 350, screct.bottom - 30)
+##    contributor = '1104106337'
+##    show_text(contributor , screct.centerx - 6 * 24 - 100, screct.bottom - 30)
 
     # Refresh screen.
     pygame.display.flip()
+
+show_text("You're DEAD", screct.centerx - 6*11, screct.centery - 12)
+pygame.display.flip()
+
+time.sleep(0.5)
+pygame.event.clear() # Clear event queue avoid getting unused events.
+event = pygame.event.wait()
 
 pygame.quit()
 sys.exit()
