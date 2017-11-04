@@ -56,6 +56,11 @@ font = pygame.font.Font('fonts/msjh.ttf', 24)
 
 screct = screen.get_rect()
 
+explode_image = 'images/explosion1.png'
+explode = pygame.image.load(explode_image).convert()
+
+# It fails if the enviroment has no audio driver.
+
 ##shooting_sfx = pygame.mixer.Sound(sound_file)
 ##shooting_sfx.set_volume(volume_ratio)
 
@@ -74,6 +79,21 @@ def show_text(text, x, y):
     text = font.render(text, True, (255, 255, 255))
 ##    print(dir(text))
     screen.blit(text, (x, y))
+
+
+class Explode(pygame.sprite.Sprite):
+
+    def __init__(self, cx, cy):
+        super(Explode, self).__init__()
+        self.image = explode
+        self.rect = self.image.get_rect()
+        self.rect.center = (cx, cy)
+        self.spawntime = pygame.time.get_ticks()
+        self.lifetime = 0.07 * 1000
+
+    def update(self):
+        pass
+# End of 'Explode'.
 
 class SnowFlake(pygame.sprite.Sprite):
 
@@ -95,7 +115,7 @@ class SnowFlake(pygame.sprite.Sprite):
             # Outside of upper limit.
             self.drop_rate = rdspeed()
             self.shft_rate = shftspeed()
-
+# End of 'SnowFlake'.
 
 SNOWFLAKE_GROUP = pygame.sprite.Group()
 for i in range(FLAKES):
@@ -104,6 +124,8 @@ for i in range(FLAKES):
     s.rect.centery = random.randrange(0, W_HEIGHT)
     SNOWFLAKE_GROUP.add(s)
 
+# ---Create new class for enemy.---
+# use pygame.trasform.rotozoom(Surface, angle, scale) to size-up image.
 
 class Hitbox(pygame.sprite.Sprite):
 
@@ -114,6 +136,7 @@ class Hitbox(pygame.sprite.Sprite):
                  w=None,
                  h=None,
                  color=None,
+                 image=None,
                  enemy=False
                  ):
         super(Hitbox, self).__init__()
@@ -215,7 +238,7 @@ class Hitbox(pygame.sprite.Sprite):
             self.rect.move_ip(self.move_h_rate, 0)
         if self.move_dir < 0:
             self.rect.move_ip(-self.move_h_rate, 0)
-
+# End of 'Hitbox'.
 
 class Bullet(pygame.sprite.Sprite):
 
@@ -239,7 +262,7 @@ class Bullet(pygame.sprite.Sprite):
             self.rect.centery -= self.projectspd
         if self.direct == 'DOWN':
             self.rect.centery += self.projectspd
-
+# End of 'Bullet'.
 
 class Consumables(pygame.sprite.Sprite):
 
@@ -273,14 +296,18 @@ class Consumables(pygame.sprite.Sprite):
 
         if self.lifetime - pygame.time.get_ticks() < 700:
             self.image.fill((255, 0, 0))
-
+# End of 'Consumables'.
 
 #---------------------------------------------------------------------
 
 psuedo_player = Hitbox(w=50, h=50)
 
+player_atk = 17
+
 player_group = pygame.sprite.Group()
 player_group.add(psuedo_player)
+
+# Use specialized class for enemy.
 
 enemy = Hitbox(y=60, w=170, h=15, color=(221, 0, 48), enemy=True)
 
@@ -289,6 +316,8 @@ enemy_group.add(enemy)
 
 bullet_group = pygame.sprite.Group()
 enemy_bullet_group = pygame.sprite.Group()
+
+Explode_group = pygame.sprite.Group()
 
 pill = Consumables()
 
@@ -311,7 +340,7 @@ msjh = 'fonts/msjh.ttf'
 cap_font = pygame.font.Font(msjh, 120)
 sub_font = pygame.font.Font(msjh, 24)
 cap = "Pyden 2017"
-sub = "Studio WHaTeVeR proudly present"
+sub = "Studio EVER proudly present"
 
 screen_rect = screen.get_rect()
 
@@ -332,11 +361,13 @@ def show_cap(text, x, y, trans, font=cap_font):
     screen.blit(text, (x - text_x / 2, y - text_y / 2))
     print(trans)
 
-play_caption = True
+play_caption = False
 
 stay_interval = 1.5
 
 init_trans = 0
+fade_in_speed = 9
+fade_out_speed = 15
 
 fade_in_phase = True
 fade_out_phase = False
@@ -357,7 +388,7 @@ if play_caption:
             trans=trans,
             font=sub_font
             )
-        trans += 11
+        trans += fade_in_speed
         if trans >= 255:
             trans = 255
             fade_in_phase = False
@@ -380,7 +411,7 @@ if play_caption:
             trans=trans,
             font=sub_font
             )
-        trans -= 15
+        trans -= fade_out_speed
         if trans <= 0:
             trans = 0
             fade_out_phase = False
@@ -397,16 +428,27 @@ hits = 0
 e_hits = 0
 score = 0
 
+enemy_hp = 1000
+enemy_max_hp = 1000
+
 show_death = True
 
 while RUN_FLAG:
     CLOCK.tick(FPS)
+    
+    # Init screen color.
+    # ---Put scrolling background here---
+    screen.fill(BLACK)
+    
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             RUN_FLAG = False
         elif event.type == pygame.KEYDOWN:
 ##            print('KEYDOWN event detected:', event.key)
             if event.key == pygame.K_ESCAPE:
+                show_text("Exit by user",
+                          screct.centerx - 6*11,
+                          screct.centery + 55)
                 RUN_FLAG = False
                 print("Exit by esc key.")
 
@@ -422,9 +464,6 @@ while RUN_FLAG:
         psuedo_player.move('D')
     if keyboard[pygame.K_j]:
         psuedo_player.create_bullet(bullet_group)
-
-    # Init screen color.
-    screen.fill(BLACK)
 
     # Background logics.
     SNOWFLAKE_GROUP.draw(screen)
@@ -453,34 +492,71 @@ while RUN_FLAG:
 
     for enemy in enemy_group:
         if dice(10):
+            # Has 10% of chance spawn a bullet per tick.
             enemy.create_bullet(enemy_bullet_group)
     
     enemy_group.update()
     enemy_group.draw(screen)
 
     # Projectile logics.
+    # Player:
     bullet_group.draw(screen)
     bullet_group.update()
     for bullet in bullet_group:
         if not screct.colliderect(bullet.rect):
             # Remove bullets that out of screen.
             bullet_group.remove(bullet)
-        if pygame.sprite.spritecollideany(bullet, enemy_group):
+        for spr in pygame.sprite.spritecollide(bullet, enemy_group, False):
+            # Insert on-hit-animation here.
+            colcenterx = (spr.rect.centerx + bullet.rect.centerx)/2
+            colcentery = (spr.rect.centery + bullet.rect.centery)/2
+            print(colcenterx, colcentery)
+            Explode_group.add(
+                Explode(
+                    colcenterx, colcentery))
             bullet_group.remove(bullet)
             hits += 1
+            enemy_hp -= player_atk
+            if enemy_hp <= 0:
+                show_text("Victory!",
+                          screct.centerx - 6*11,
+                          screct.centery + 16)
+                RUN_FLAG = False
 
+    # Enemy:
     enemy_bullet_group.draw(screen)
     enemy_bullet_group.update()
     for ebullet in enemy_bullet_group:
         if not screct.colliderect(ebullet.rect):
             # Remove bullets that out of screen.
             enemy_bullet_group.remove(ebullet)
-        if pygame.sprite.spritecollideany(ebullet, player_group):
+        for espr in  pygame.sprite.spritecollide(ebullet, player_group, False):
+            # Insert on-hit-animation here.
+            colcenterx = (espr.rect.centerx + ebullet.rect.centerx)/2
+            colcentery = (espr.rect.centery + ebullet.rect.centery)/2
+            print(colcenterx, colcentery)
+            Explode_group.add(
+                Explode(
+                    colcenterx, colcentery))
             enemy_bullet_group.remove(ebullet)
             e_hits += 1
 
             if e_hits >= 5:
+                show_text("You're DEAD",
+                          screct.centerx - 6*11,
+                          screct.centery - 12)
                 RUN_FLAG = False
+
+    Explode_group.draw(screen)
+    Explode_group.update()
+    for e in Explode_group:
+        explode_elapsed = pygame.time.get_ticks() - e.spawntime
+        if explode_elapsed > e.lifetime:
+            Explode_group.remove(e)
+
+    # ---Insert enemy life instructor here.---
+
+    # ---Insert player life instructor here.---
 
     # Print elapsed time (ms) on screen
     elapsed_time = '{:.3f} seconds'.format(
@@ -490,18 +566,31 @@ while RUN_FLAG:
     show_text(f'hits: {hits}', 5, screct.bottom - 30)
     show_text(f'score: {score}', 5, 30 + 5)
     show_text(f'Enemy_hits: {e_hits}', screct.right - 350, screct.bottom - 30)
-##    contributor = '1104106337'
-##    show_text(contributor , screct.centerx - 6 * 24 - 100, screct.bottom - 30)
 
+
+    ratio = abs(int(600*(enemy_hp/enemy_max_hp)))
+    ehp_s = pygame.Surface((ratio, 20))
+    ehp_rect = ehp_s.get_rect(
+        center=(screct.centerx, 15))
+    ehp_s.fill((0, 240, 0))
+    screen.blit(ehp_s, ehp_rect)
+    print(enemy_hp)
+    
     # Refresh screen.
     pygame.display.flip()
 
-show_text("You're DEAD", screct.centerx - 6*11, screct.centery - 12)
+#End Game loop--------------------------------------------------------
+
 pygame.display.flip()
 
 time.sleep(0.5)
 pygame.event.clear() # Clear event queue avoid getting unused events.
-event = pygame.event.wait()
+
+while True:
+    event = pygame.event.wait()
+    if event.type == pygame.KEYDOWN:
+        # Quit by press any key.
+        break
 
 pygame.quit()
 sys.exit()
