@@ -474,7 +474,7 @@ while RUN_FLAG:
                 show_text("Exit by user",
                           screct.centerx - 6*11,
                           screct.centery + 55)
-                DIE_FLAG = False
+                RUN_FLAG = False
                 print("Exit by esc key.")
 
     # Player activities logics.
