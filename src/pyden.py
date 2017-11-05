@@ -503,6 +503,9 @@ while RUN_FLAG:
         show_text("You're DEAD",
                           screct.centerx - 6*11,
                           screct.centery - 12)
+        current_die_time = pygame.time.get_ticks()
+        if current_die_time - pre_die_time >= 5000:
+            RUN_FLAG = False
         
     # Background logics.
     SNOWFLAKE_GROUP.draw(screen)
@@ -584,6 +587,8 @@ while RUN_FLAG:
             e_hits += 1
 
             if e_hits >= 5:
+                if not DIE_FLAG:
+                    pre_die_time = pygame.time.get_ticks()
                 DIE_FLAG = True
     if not DIE_FLAG:
         Explode_group.draw(screen)
