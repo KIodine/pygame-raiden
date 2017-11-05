@@ -301,6 +301,22 @@ class Consumables(pygame.sprite.Sprite):
             self.image.fill((255, 0, 0))
 # End of 'Consumables'.
 
+class Die_Explosion(pygame.sprite.Sprite):
+    def __init__(self):
+        super(Die_Explosion, self).__init__()
+        #pygame.sprite.Sprite.__init__(self)
+        self.image = None
+        self.rect = 0, 0, 50, 50
+        self.master_image = pygame.image.load("images/stone.png").convert_alpha()
+        self.animation_list = []
+        for y in range(4):
+            for x in range(5):
+                self.animation_list.append((x*50, y*50, 50, 50))
+    def update(self, current_time):        
+        rect = self.animation_list[current_time//50 % len(self.animation_list)]
+        self.image = self.master_image.subsurface(rect)
+#End of 'Die_Explosion'
+
 #---------------------------------------------------------------------
 
 psuedo_player = Hitbox(w=50, h=50)
@@ -327,10 +343,16 @@ pill = Consumables()
 pill_group = pygame.sprite.Group()
 pill_group.add(pill)
 
+# Die_Explosion_Group
+die_explosion1 = Die_Explosion()
+die_explosion2 = Die_Explosion()
+die_explosion3 = Die_Explosion()
+die_explosion_group = pygame.sprite.Group()
 # Game loop area.
 
 CLOCK = pygame.time.Clock()
 RUN_FLAG = True
+DIE_FLAG = False  # Check if player is alive or not
 
 #---------------------------------------------------------------------
 
@@ -360,7 +382,7 @@ def show_cap(text, x, y, trans, font=cap_font):
             raise
     text = font.render(text, True, (trans, trans, trans))
     text_x, text_y = text.get_size()
-    print('text_xy', text_x, text_y)
+    ('text_xy', text_x, text_y)
     screen.blit(text, (x - text_x / 2, y - text_y / 2))
     print(trans)
 
@@ -452,22 +474,33 @@ while RUN_FLAG:
                 show_text("Exit by user",
                           screct.centerx - 6*11,
                           screct.centery + 55)
-                RUN_FLAG = False
+                DIE_FLAG = False
                 print("Exit by esc key.")
 
     # Player activities logics.
-    keyboard = pygame.key.get_pressed()
-    if keyboard[pygame.K_w]:
-        psuedo_player.move('W')
-    if keyboard[pygame.K_s]:
-        psuedo_player.move('S')
-    if keyboard[pygame.K_a]:
-        psuedo_player.move('A')
-    if keyboard[pygame.K_d]:
-        psuedo_player.move('D')
-    if keyboard[pygame.K_j]:
-        psuedo_player.create_bullet(bullet_group)
-
+    # Avaliable to control if player is alive
+    if not DIE_FLAG:
+        keyboard = pygame.key.get_pressed()
+        if keyboard[pygame.K_w]:
+            psuedo_player.move('W')
+        if keyboard[pygame.K_s]:
+            psuedo_player.move('S')
+        if keyboard[pygame.K_a]:
+            psuedo_player.move('A')
+        if keyboard[pygame.K_d]:
+            psuedo_player.move('D')
+        if keyboard[pygame.K_j]:
+            psuedo_player.create_bullet(bullet_group)
+    
+    # Player's dead. EXPLOSION!!
+    else:
+        die_explosion1.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
+        die_explosion2.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
+        die_explosion3.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
+        die_explosion_group.add(die_explosion1)
+        die_explosion_group.update(pygame.time.get_ticks())
+        die_explosion_group.draw(screen)
+        
     # Background logics.
     SNOWFLAKE_GROUP.draw(screen)
     SNOWFLAKE_GROUP.update()
@@ -549,7 +582,7 @@ while RUN_FLAG:
                 show_text("You're DEAD",
                           screct.centerx - 6*11,
                           screct.centery - 12)
-                RUN_FLAG = False
+                DIE_FLAG = True
 
     Explode_group.draw(screen)
     Explode_group.update()
