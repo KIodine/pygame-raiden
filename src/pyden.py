@@ -500,6 +500,9 @@ while RUN_FLAG:
         die_explosion_group.add(die_explosion1)
         die_explosion_group.update(pygame.time.get_ticks())
         die_explosion_group.draw(screen)
+        show_text("You're DEAD",
+                          screct.centerx - 6*11,
+                          screct.centery - 12)
         
     # Background logics.
     SNOWFLAKE_GROUP.draw(screen)
@@ -579,9 +582,6 @@ while RUN_FLAG:
             e_hits += 1
 
             if e_hits >= 5:
-                show_text("You're DEAD",
-                          screct.centerx - 6*11,
-                          screct.centery - 12)
                 DIE_FLAG = True
 
     Explode_group.draw(screen)
@@ -622,7 +622,7 @@ while RUN_FLAG:
 
 pygame.display.flip()
 
-time.sleep(0.5)
+#time.sleep(0.5)
 pygame.event.clear() # Clear event queue avoid getting unused events.
 
 while True:
