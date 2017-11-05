@@ -520,9 +520,9 @@ while RUN_FLAG:
         if pygame.sprite.spritecollideany(p, player_group):
             score += p.score
             pill_group.remove(p)
-        
-    pill_group.update()
-    pill_group.draw(screen)
+    if not DIE_FLAG:
+        pill_group.update()
+        pill_group.draw(screen)
 
     # Draw player on screen.
     player_group.draw(screen)
@@ -533,14 +533,15 @@ while RUN_FLAG:
         if dice(10):
             # Has 10% of chance spawn a bullet per tick.
             enemy.create_bullet(enemy_bullet_group)
-    
-    enemy_group.update()
+    if not DIE_FLAG:
+        enemy_group.update()
     enemy_group.draw(screen)
 
     # Projectile logics.
     # Player:
-    bullet_group.draw(screen)
-    bullet_group.update()
+    if not DIE_FLAG:
+        bullet_group.draw(screen)
+        bullet_group.update()
     for bullet in bullet_group:
         if not screct.colliderect(bullet.rect):
             # Remove bullets that out of screen.
@@ -564,8 +565,9 @@ while RUN_FLAG:
                 RUN_FLAG = False
 
     # Enemy:
-    enemy_bullet_group.draw(screen)
-    enemy_bullet_group.update()
+    if not DIE_FLAG:
+        enemy_bullet_group.draw(screen)
+        enemy_bullet_group.update()
     for ebullet in enemy_bullet_group:
         if not screct.colliderect(ebullet.rect):
             # Remove bullets that out of screen.
@@ -583,9 +585,9 @@ while RUN_FLAG:
 
             if e_hits >= 5:
                 DIE_FLAG = True
-
-    Explode_group.draw(screen)
-    Explode_group.update()
+    if not DIE_FLAG:
+        Explode_group.draw(screen)
+        Explode_group.update()
     for e in Explode_group:
         explode_elapsed = pygame.time.get_ticks() - e.spawntime
         if explode_elapsed > e.lifetime:
