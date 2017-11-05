@@ -14,7 +14,7 @@ try:
 except:
     raise
 
-# Interstellar simulator 2017 ver. 0.7
+# Interstellar simulator 2017 ver. 0.11
 
 rdgray = lambda: random.choice(cfg.gray_scale_range)
 rdyellow = lambda: random.choice(cfg.yellow_range)
@@ -57,7 +57,8 @@ font = pygame.font.Font('fonts/msjh.ttf', 24)
 screct = screen.get_rect()
 
 explode_image = 'images/explosion1.png'
-explode = pygame.image.load(explode_image).convert()
+explode = pygame.image.load(explode_image).convert_alpha()
+# Use 'convert_alpha()' for images have alpha channel.
 
 # It fails if the enviroment has no audio driver.
 
@@ -77,7 +78,8 @@ def show_text(text, x, y):
         except:
             raise
     text = font.render(text, True, (255, 255, 255))
-##    print(dir(text))
+    # Text is a 'pygame.Surface' object.
+    t_rect = text.get_rect()
     screen.blit(text, (x, y))
 
 
@@ -212,6 +214,7 @@ class Hitbox(pygame.sprite.Sprite):
         shift = self.bullet_shift
         bullet_obj = Bullet(ctx, top - shift)
         if self.isenemy is True:
+            # Add random shift for bullet?
             bullet_obj = Bullet(
                 ctx, self.rect.bottom + shift, direct='DOWN', size='L')
         group.add(bullet_obj)
@@ -521,6 +524,7 @@ while RUN_FLAG:
                 show_text("Victory!",
                           screct.centerx - 6*11,
                           screct.centery + 16)
+                print("Exit by victory.")
                 RUN_FLAG = False
 
     # Enemy:
@@ -568,13 +572,15 @@ while RUN_FLAG:
     show_text(f'Enemy_hits: {e_hits}', screct.right - 350, screct.bottom - 30)
 
 
-    ratio = abs(int(600*(enemy_hp/enemy_max_hp)))
+    ratio = int(600*(enemy_hp/enemy_max_hp))
+    if ratio < 0: ratio = 0
     ehp_s = pygame.Surface((ratio, 20))
     ehp_rect = ehp_s.get_rect(
         center=(screct.centerx, 15))
     ehp_s.fill((0, 240, 0))
     screen.blit(ehp_s, ehp_rect)
     print(enemy_hp)
+    pygame.display.update(ehp_rect)
     
     # Refresh screen.
     pygame.display.flip()
