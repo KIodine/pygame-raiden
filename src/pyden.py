@@ -491,21 +491,6 @@ while RUN_FLAG:
             psuedo_player.move('D')
         if keyboard[pygame.K_j]:
             psuedo_player.create_bullet(bullet_group)
-    
-    # Player's dead. EXPLOSION!!
-    else:
-        die_explosion1.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion2.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion3.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion_group.add(die_explosion1)
-        die_explosion_group.update(pygame.time.get_ticks())
-        die_explosion_group.draw(screen)
-        show_text("You're DEAD",
-                          screct.centerx - 6*11,
-                          screct.centery - 12)
-        current_die_time = pygame.time.get_ticks()
-        if current_die_time - pre_die_time >= 5000:
-            RUN_FLAG = False
         
     # Background logics.
     SNOWFLAKE_GROUP.draw(screen)
@@ -529,7 +514,7 @@ while RUN_FLAG:
 
     # Draw player on screen.
     player_group.draw(screen)
-
+    
     # Draw Enemies on screen
 
     for enemy in enemy_group:
@@ -540,6 +525,21 @@ while RUN_FLAG:
         enemy_group.update()
     enemy_group.draw(screen)
 
+    # Player's dead. EXPLOSION!!
+    if DIE_FLAG:
+        die_explosion1.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
+        die_explosion2.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
+        die_explosion3.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
+        die_explosion_group.add(die_explosion1)
+        die_explosion_group.update(pygame.time.get_ticks())
+        die_explosion_group.draw(screen)
+        show_text("You're DEAD",
+                          screct.centerx - 6*11,
+                          screct.centery - 12)
+        current_die_time = pygame.time.get_ticks()
+        if current_die_time - pre_die_time >= 5000:
+            RUN_FLAG = False
+    
     # Projectile logics.
     # Player:
     if not DIE_FLAG:
