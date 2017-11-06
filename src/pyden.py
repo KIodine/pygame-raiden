@@ -11,8 +11,10 @@ except:
 
 try:
     import config as cfg
+    import snowflake as snf
 except:
     raise
+	
 
 # Interstellar simulator 2017 ver. 0.11
 
@@ -24,7 +26,7 @@ rdsize = lambda: random.choices(
     [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1)
 
 dice = lambda chn: True if chn > random.random() * 100 else False
-
+print (rdsize)
 #Simple functions set.------------------------------------------------
 
 # Use random.gause(mu, sigma) to get normal dist?
@@ -97,31 +99,11 @@ class Explode(pygame.sprite.Sprite):
         pass
 # End of 'Explode'.
 
-class SnowFlake(pygame.sprite.Sprite):
 
-    def __init__(self):
-        super(SnowFlake, self).__init__()
-        self.image = pygame.Surface(*rdsize())
-        self.image.fill(rdgray())
-        self.rect = self.image.get_rect()
-        self.drop_rate = rdspeed()
-        self.shft_rate = shftspeed()
-
-    def update(self):
-        self.rect.centery += self.drop_rate
-        if self.rect.centery >= W_HEIGHT:
-            # Boundary action.
-            # Reset position when going outside of screen.
-            self.rect.centerx = random.randrange(0, W_WIDTH)
-            self.rect.centery = random.randrange(-20, -5)
-            # Outside of upper limit.
-            self.drop_rate = rdspeed()
-            self.shft_rate = shftspeed()
-# End of 'SnowFlake'.
 
 SNOWFLAKE_GROUP = pygame.sprite.Group()
 for i in range(FLAKES):
-    s = SnowFlake()
+    s = snf.SnowFlake(rdsize,rdgray,rdspeed,shftspeed,W_HEIGHT,W_WIDTH)
     s.rect.centerx = random.randrange(0, W_WIDTH)
     s.rect.centery = random.randrange(0, W_HEIGHT)
     SNOWFLAKE_GROUP.add(s)

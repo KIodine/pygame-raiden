@@ -10,3 +10,7 @@
 *.mid
 *.pyc
 *.json
+src/images.zip
+src/fonts.zip
+src/music.zip
+src/music/desktop.ini
