@@ -273,7 +273,7 @@ class Consumables(pygame.sprite.Sprite):
         super(Consumables, self).__init__()
         
         size_list = [
-            ['S', (7, 7)], ['M', (15, 15)], ['L', (19, 19)]
+            ['S', (7, 7)], ['M', (10, 10)], ['L', (14, 14)]
             ]
         score_dict = {
             'S': 1, 'M': 3, 'L': 7
@@ -302,19 +302,37 @@ class Consumables(pygame.sprite.Sprite):
 # End of 'Consumables'.
 
 class Die_Explosion(pygame.sprite.Sprite):
-    def __init__(self):
+    
+    def __init__(self, cx, cy):
         super(Die_Explosion, self).__init__()
-        #pygame.sprite.Sprite.__init__(self)
+        self.center = cx, cy
         self.image = None
-        self.rect = 0, 0, 50, 50
+        self.subrect = 0, 0, 50, 50
         self.master_image = pygame.image.load("images/stone.png").convert_alpha()
         self.animation_list = []
         for y in range(4):
             for x in range(5):
                 self.animation_list.append((x*50, y*50, 50, 50))
-    def update(self, current_time):        
-        rect = self.animation_list[current_time//50 % len(self.animation_list)]
+        self.index = 0
+        self.spawntime = pygame.time.get_ticks()
+        
+        self.zero = self.spawntime
+        self.stay_interval = 300 # ms.
+
+        self.ended = False
+        
+    def update(self, current_time):
+        rect = self.animation_list[self.index]
+        self.index += 1
+        if self.index > len(self.animation_list) - 1:
+            self.zero = self.zero or current_time
+            self.index = 0
+            if (current_time - self.zero) > self.stay_interval:
+                self.ended = True
+        
         self.image = self.master_image.subsurface(rect)
+        self.rect = self.image.get_rect()
+        self.rect.center = self.center
 #End of 'Die_Explosion'
 
 #---------------------------------------------------------------------
@@ -344,10 +362,10 @@ pill_group = pygame.sprite.Group()
 pill_group.add(pill)
 
 # Die_Explosion_Group
-die_explosion1 = Die_Explosion()
-die_explosion2 = Die_Explosion()
-die_explosion3 = Die_Explosion()
+
 die_explosion_group = pygame.sprite.Group()
+last_spawn = 0
+
 # Game loop area.
 
 CLOCK = pygame.time.Clock()
@@ -382,7 +400,7 @@ def show_cap(text, x, y, trans, font=cap_font):
             raise
     text = font.render(text, True, (trans, trans, trans))
     text_x, text_y = text.get_size()
-    ('text_xy', text_x, text_y)
+##    print('text_xy', text_x, text_y)
     screen.blit(text, (x - text_x / 2, y - text_y / 2))
     print(trans)
 
@@ -527,10 +545,19 @@ while RUN_FLAG:
 
     # Player's dead. EXPLOSION!!
     if DIE_FLAG:
-        die_explosion1.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion2.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion3.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion_group.add(die_explosion1)
+        exp_spawn_interval = pygame.time.get_ticks() - last_spawn
+        if len(die_explosion_group) <= 5 and exp_spawn_interval > 200: # ms.
+            random_playerx = psuedo_player.rect.centerx + random.randint(-25, 25)
+            random_playery = psuedo_player.rect.centery + random.randint(-25, 25)
+            die_exp = Die_Explosion(random_playerx, random_playery)
+            die_explosion_group.add(die_exp)
+            last_spawn = pygame.time.get_ticks()
+        
+        for die_exp in die_explosion_group:
+            if die_exp.ended:
+                die_explosion_group.remove(die_exp)
+
+##        die_explosion_group.add(die_explosion1)
         die_explosion_group.update(pygame.time.get_ticks())
         die_explosion_group.draw(screen)
         show_text("You're DEAD",
@@ -550,13 +577,15 @@ while RUN_FLAG:
             # Remove bullets that out of screen.
             bullet_group.remove(bullet)
         for spr in pygame.sprite.spritecollide(bullet, enemy_group, False):
-            # Insert on-hit-animation here.
+            # Insert on-hit-animation here. -> Done.
+            
             colcenterx = (spr.rect.centerx + bullet.rect.centerx)/2
             colcentery = (spr.rect.centery + bullet.rect.centery)/2
             print(colcenterx, colcentery)
+            
             Explode_group.add(
                 Explode(
-                    colcenterx, colcentery))
+                    *bullet.rect.center))
             bullet_group.remove(bullet)
             hits += 1
             enemy_hp -= player_atk
@@ -576,13 +605,16 @@ while RUN_FLAG:
             # Remove bullets that out of screen.
             enemy_bullet_group.remove(ebullet)
         for espr in  pygame.sprite.spritecollide(ebullet, player_group, False):
-            # Insert on-hit-animation here.
+            # Insert on-hit-animation here. -> Done.
+            
             colcenterx = (espr.rect.centerx + ebullet.rect.centerx)/2
             colcentery = (espr.rect.centery + ebullet.rect.centery)/2
+            cldx, cldy = ebullet.rect.midtop
             print(colcenterx, colcentery)
+            
             Explode_group.add(
                 Explode(
-                    colcenterx, colcentery))
+                    *ebullet.rect.center))
             enemy_bullet_group.remove(ebullet)
             e_hits += 1
 
