@@ -339,7 +339,7 @@ class Die_Explosion(pygame.sprite.Sprite):
 
 psuedo_player = Hitbox(w=50, h=50)
 
-player_atk = 17
+player_atk = 25
 
 player_group = pygame.sprite.Group()
 player_group.add(psuedo_player)
@@ -404,7 +404,7 @@ def show_cap(text, x, y, trans, font=cap_font):
     screen.blit(text, (x - text_x / 2, y - text_y / 2))
     print(trans)
 
-play_caption = False
+play_caption = True
 
 stay_interval = 1.5
 
@@ -412,8 +412,10 @@ init_trans = 0
 fade_in_speed = 9
 fade_out_speed = 15
 
+# DO NOT TOUCH, this is the sign for animation controlling.
 fade_in_phase = True
 fade_out_phase = False
+
 
 if play_caption:
     trans = init_trans
@@ -474,7 +476,8 @@ score = 0
 enemy_hp = 1000
 enemy_max_hp = 1000
 
-show_death = True
+player_dead = False
+enemy_dead = False
 
 while RUN_FLAG:
     CLOCK.tick(FPS)
@@ -545,11 +548,19 @@ while RUN_FLAG:
 
     # Player's dead. EXPLOSION!!
     if DIE_FLAG:
+        
+        if player_dead:
+            target_rect = psuedo_player.rect
+            end_messege = "You're DEAD"
+        if enemy_dead:
+            target_rect = enemy.rect
+            end_messege = "VICTORY!"
+        
         exp_spawn_interval = pygame.time.get_ticks() - last_spawn
         if len(die_explosion_group) <= 5 and exp_spawn_interval > 200: # ms.
-            random_playerx = psuedo_player.rect.centerx + random.randint(-25, 25)
-            random_playery = psuedo_player.rect.centery + random.randint(-25, 25)
-            die_exp = Die_Explosion(random_playerx, random_playery)
+            random_x = target_rect.centerx + random.randint(-25, 25)
+            random_y = target_rect.centery + random.randint(-25, 25)
+            die_exp = Die_Explosion(random_x, random_y)
             die_explosion_group.add(die_exp)
             last_spawn = pygame.time.get_ticks()
         
@@ -560,9 +571,9 @@ while RUN_FLAG:
 ##        die_explosion_group.add(die_explosion1)
         die_explosion_group.update(pygame.time.get_ticks())
         die_explosion_group.draw(screen)
-        show_text("You're DEAD",
-                          screct.centerx - 6*11,
-                          screct.centery - 12)
+        show_text(end_messege,
+                  screct.centerx - 6*11,
+                  screct.centery - 12)
         current_die_time = pygame.time.get_ticks()
         if current_die_time - pre_die_time >= 5000:
             RUN_FLAG = False
@@ -572,6 +583,8 @@ while RUN_FLAG:
     if not DIE_FLAG:
         bullet_group.draw(screen)
         bullet_group.update()
+    if not DIE_FLAG:
+        pre_die_time = pygame.time.get_ticks()
     for bullet in bullet_group:
         if not screct.colliderect(bullet.rect):
             # Remove bullets that out of screen.
@@ -589,12 +602,14 @@ while RUN_FLAG:
             bullet_group.remove(bullet)
             hits += 1
             enemy_hp -= player_atk
+                
             if enemy_hp <= 0:
-                show_text("Victory!",
-                          screct.centerx - 6*11,
-                          screct.centery + 16)
+##                show_text("Victory!",
+##                          screct.centerx - 6*11,
+##                          screct.centery + 16)
                 print("Exit by victory.")
-                RUN_FLAG = False
+                DIE_FLAG = True
+                enemy_dead = True
 
     # Enemy:
     if not DIE_FLAG:
@@ -622,6 +637,8 @@ while RUN_FLAG:
                 if not DIE_FLAG:
                     pre_die_time = pygame.time.get_ticks()
                 DIE_FLAG = True
+                player_dead = True
+                
     if not DIE_FLAG:
         Explode_group.draw(screen)
         Explode_group.update()
@@ -629,8 +646,6 @@ while RUN_FLAG:
         explode_elapsed = pygame.time.get_ticks() - e.spawntime
         if explode_elapsed > e.lifetime:
             Explode_group.remove(e)
-
-    # ---Insert enemy life instructor here.---
 
     # ---Insert player life instructor here.---
 
@@ -643,6 +658,7 @@ while RUN_FLAG:
     show_text(f'score: {score}', 5, 30 + 5)
     show_text(f'Enemy_hits: {e_hits}', screct.right - 350, screct.bottom - 30)
 
+    # Enemy life intruction.
 
     ratio = int(600*(enemy_hp/enemy_max_hp))
     if ratio < 0: ratio = 0
