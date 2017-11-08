@@ -44,10 +44,12 @@ FLAKES = 512
 FPS = cfg.FPS
 
 
-
-sound_file = 'music/beep1.ogg' # Need to be replaced.
-##bgm = 'music/Diebuster OST- Escape Velocity.mp3'
-volume_ratio = 0.25
+try:
+    sound_file = 'music/beep1.ogg' # Need to be replaced.
+    bgm = 'music/Diebuster OST- Escape Velocity.mp3'
+    volume_ratio = 0.25
+except:
+    raise
 
 #Constants set.------------------------------------------------------
 
@@ -61,10 +63,10 @@ screen.fill(cfg.color.black)
 font = pygame.font.Font('fonts/msjh.ttf', 24)
 
 screct = screen.get_rect()
-
+rocket = pygame.image.load("images/rocket02.png").convert_alpha()
 explode_image = 'images/explosion1.png'
 explode = pygame.image.load(explode_image).convert_alpha()
-ufo = pygame.image.load("../ufo.gif")
+ufo = pygame.image.load("../ufo.gif").convert_alpha()
 # Use 'convert_alpha()' for images have alpha channel.
 
 # It fails if the enviroment has no audio driver.
@@ -114,7 +116,9 @@ class Hitbox(pygame.sprite.Sprite):
                  h=None,
                  color=None,
                  image=None,
-                 enemy=False
+                 enemy=False,
+                 ratio=1,
+                 frames=1,
                  ):
         super(Hitbox, self).__init__()
         self.isenemy = enemy
@@ -136,7 +140,8 @@ class Hitbox(pygame.sprite.Sprite):
             self.picrect = self.animation_list[self.index]
             self.image = self.wholepic.subsurface(self.picrect)
         
-        self.rect = self.image.get_rect()
+        picture = pygame.transform.scale( self.image, (int(w*ratio), int(h*ratio)) )
+        self.rect = picture.get_rect()
         
         self.rect.centery = y or screct.centery # Initial place aligned with screen.
         self.rect.centerx = x or screct.centerx
@@ -244,7 +249,7 @@ class Hitbox(pygame.sprite.Sprite):
 
 #---------------------------------------------------------------------
 
-psuedo_player = Hitbox(w=50, h=50)
+psuedo_player = Hitbox(w=46, h=200, image=rocket, ratio=0.5)
 
 player_atk = 25
 
@@ -253,7 +258,7 @@ player_group.add(psuedo_player)
 
 # Use specialized class for enemy.
 
-enemy = Hitbox(y=60, w=58, image = ufo, h=34, color=(221, 0, 48), enemy=True)
+enemy = Hitbox(y=60, w=58, image = ufo, h=34, color=(221, 0, 48), enemy=True, ratio=2 )
 
 enemy_group = pygame.sprite.Group()
 enemy_group.add(enemy)
@@ -452,7 +457,7 @@ while RUN_FLAG:
     if not DIE_FLAG:
         enemy_group.update()
     enemy_group.draw(screen)
-
+    
     # Player's dead. EXPLOSION!!
     if DIE_FLAG:
         
