@@ -58,6 +58,14 @@ screct = screen.get_rect()
 
 explode_image = 'images/explosion1.png'
 explode = pygame.image.load(explode_image).convert_alpha()
+
+rocket_image = 'images/rocket02.png'
+rocket2 = pygame.image.load(rocket_image).convert_alpha()
+rocket2 = pygame.transform.rotozoom(rocket2, 0, 0.7)
+
+ufo_image = 'images/ufo.gif'
+ufo = pygame.image.load(ufo_image).convert_alpha()
+
 # Use 'convert_alpha()' for images have alpha channel.
 
 # It fails if the enviroment has no audio driver.
@@ -141,13 +149,19 @@ class Hitbox(pygame.sprite.Sprite):
                  image=None,
                  enemy=False
                  ):
+        '''\
+Pass converted Surface object to image.
+'''
         super(Hitbox, self).__init__()
         self.isenemy = enemy
         color = color or (0, 255, 0)
         w = w or 70
         h = h or 100
-        self.image = pygame.Surface((w, h))
-        self.image.fill(color)
+        if image is not None:
+            self.image = image
+        else:
+            self.image = pygame.Surface((w, h))
+            self.image.fill(color)
         self.rect = self.image.get_rect()
         
         self.rect.centery = y or screct.centery # Initial place aligned with screen.
@@ -301,6 +315,9 @@ class Consumables(pygame.sprite.Sprite):
             self.image.fill((255, 0, 0))
 # End of 'Consumables'.
 
+#   Note: Create enemy object that uses the multi-image concept of
+#       'Die_Explosion'.
+
 class Die_Explosion(pygame.sprite.Sprite):
     
     def __init__(self, cx, cy):
@@ -337,7 +354,7 @@ class Die_Explosion(pygame.sprite.Sprite):
 
 #---------------------------------------------------------------------
 
-psuedo_player = Hitbox(w=50, h=50)
+psuedo_player = Hitbox(w=50, h=50, image=rocket2)
 
 player_atk = 25
 
@@ -404,7 +421,7 @@ def show_cap(text, x, y, trans, font=cap_font):
     screen.blit(text, (x - text_x / 2, y - text_y / 2))
     print(trans)
 
-play_caption = True
+play_caption = False
 
 stay_interval = 1.5
 
