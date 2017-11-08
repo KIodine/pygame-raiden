@@ -64,6 +64,7 @@ screct = screen.get_rect()
 
 explode_image = 'images/explosion1.png'
 explode = pygame.image.load(explode_image).convert_alpha()
+ufo = pygame.image.load("../ufo.gif")
 # Use 'convert_alpha()' for images have alpha channel.
 
 # It fails if the enviroment has no audio driver.
@@ -118,10 +119,23 @@ class Hitbox(pygame.sprite.Sprite):
         super(Hitbox, self).__init__()
         self.isenemy = enemy
         color = color or (0, 255, 0)
-        w = w or 70
-        h = h or 100
-        self.image = pygame.Surface((w, h))
-        self.image.fill(color)
+        if ( image == None ):
+            w = w or 70
+            h = h or 100
+            
+            self.image = pygame.Surface((w, h))
+            self.image.fill(color)
+            
+        else:
+            self.animation_list = []
+            self.wholepic = image
+            for i in range( int(image.get_rect().width/w) ):
+                print( "i=" + str(i) )
+                self.animation_list.append((i*w, 0, w, h))
+            self.index = 0
+            self.picrect = self.animation_list[self.index]
+            self.image = self.wholepic.subsurface(self.picrect)
+        
         self.rect = self.image.get_rect()
         
         self.rect.centery = y or screct.centery # Initial place aligned with screen.
@@ -197,6 +211,11 @@ class Hitbox(pygame.sprite.Sprite):
 
     def update(self):
         if self.isenemy:
+            self.index += 1
+            if self.index > len(self.animation_list) - 1:
+                self.index = 0
+            self.picrect = self.animation_list[self.index]
+            self.image = self.wholepic.subsurface(self.picrect)
             self._nlmove()
             elapsed_setdest = pygame.time.get_ticks() - self._last_setdest
             if elapsed_setdest > 2 * 1000:
@@ -234,7 +253,7 @@ player_group.add(psuedo_player)
 
 # Use specialized class for enemy.
 
-enemy = Hitbox(y=60, w=170, h=15, color=(221, 0, 48), enemy=True)
+enemy = Hitbox(y=60, w=68, image = ufo, h=68, color=(221, 0, 48), enemy=True)
 
 enemy_group = pygame.sprite.Group()
 enemy_group.add(enemy)

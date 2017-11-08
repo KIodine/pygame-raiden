@@ -10,7 +10,7 @@ class Die_Explosion(pygame.sprite.Sprite):
         self.center = cx, cy
         self.image = None
         self.subrect = 0, 0, 50, 50
-        self.master_image = pygame.image.load("images/stone.png").convert_alpha()
+        self.master_image = pygame.image.load("../stone.png").convert_alpha()
         self.animation_list = []
         for y in range(4):
             for x in range(5):
