@@ -130,7 +130,7 @@ class Hitbox(pygame.sprite.Sprite):
             self.animation_list = []
             self.wholepic = image
             for i in range( int(image.get_rect().width/w) ):
-                print( "i=" + str(i) )
+                print( "i=" + str(i) + "w=" + str(w) + "h=" + str(h) )
                 self.animation_list.append((i*w, 0, w, h))
             self.index = 0
             self.picrect = self.animation_list[self.index]
@@ -253,7 +253,7 @@ player_group.add(psuedo_player)
 
 # Use specialized class for enemy.
 
-enemy = Hitbox(y=60, w=68, image = ufo, h=68, color=(221, 0, 48), enemy=True)
+enemy = Hitbox(y=60, w=58, image = ufo, h=34, color=(221, 0, 48), enemy=True)
 
 enemy_group = pygame.sprite.Group()
 enemy_group.add(enemy)
