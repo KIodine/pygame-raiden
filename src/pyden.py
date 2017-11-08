@@ -255,7 +255,7 @@ class Consumables(pygame.sprite.Sprite):
         super(Consumables, self).__init__()
         
         size_list = [
-            ['S', (7, 7)], ['M', (15, 15)], ['L', (19, 19)]
+            ['S', (7, 7)], ['M', (10, 10)], ['L', (14, 14)]
             ]
         score_dict = {
             'S': 1, 'M': 3, 'L': 7
@@ -284,26 +284,44 @@ class Consumables(pygame.sprite.Sprite):
 # End of 'Consumables'.
 
 class Die_Explosion(pygame.sprite.Sprite):
-    def __init__(self):
+    
+    def __init__(self, cx, cy):
         super(Die_Explosion, self).__init__()
-        #pygame.sprite.Sprite.__init__(self)
+        self.center = cx, cy
         self.image = None
-        self.rect = 0, 0, 50, 50
+        self.subrect = 0, 0, 50, 50
         self.master_image = pygame.image.load("images/stone.png").convert_alpha()
         self.animation_list = []
         for y in range(4):
             for x in range(5):
                 self.animation_list.append((x*50, y*50, 50, 50))
-    def update(self, current_time):        
-        rect = self.animation_list[current_time//50 % len(self.animation_list)]
+        self.index = 0
+        self.spawntime = pygame.time.get_ticks()
+        
+        self.zero = self.spawntime
+        self.stay_interval = 300 # ms.
+
+        self.ended = False
+        
+    def update(self, current_time):
+        rect = self.animation_list[self.index]
+        self.index += 1
+        if self.index > len(self.animation_list) - 1:
+            self.zero = self.zero or current_time
+            self.index = 0
+            if (current_time - self.zero) > self.stay_interval:
+                self.ended = True
+        
         self.image = self.master_image.subsurface(rect)
+        self.rect = self.image.get_rect()
+        self.rect.center = self.center
 #End of 'Die_Explosion'
 
 #---------------------------------------------------------------------
 
 psuedo_player = Hitbox(w=50, h=50)
 
-player_atk = 17
+player_atk = 25
 
 player_group = pygame.sprite.Group()
 player_group.add(psuedo_player)
@@ -326,10 +344,10 @@ pill_group = pygame.sprite.Group()
 pill_group.add(pill)
 
 # Die_Explosion_Group
-die_explosion1 = Die_Explosion()
-die_explosion2 = Die_Explosion()
-die_explosion3 = Die_Explosion()
+
 die_explosion_group = pygame.sprite.Group()
+last_spawn = 0
+
 # Game loop area.
 
 CLOCK = pygame.time.Clock()
@@ -364,11 +382,11 @@ def show_cap(text, x, y, trans, font=cap_font):
             raise
     text = font.render(text, True, (trans, trans, trans))
     text_x, text_y = text.get_size()
-    ('text_xy', text_x, text_y)
+##    print('text_xy', text_x, text_y)
     screen.blit(text, (x - text_x / 2, y - text_y / 2))
     print(trans)
 
-play_caption = False
+play_caption = True
 
 stay_interval = 1.5
 
@@ -376,8 +394,10 @@ init_trans = 0
 fade_in_speed = 9
 fade_out_speed = 15
 
+# DO NOT TOUCH, this is the sign for animation controlling.
 fade_in_phase = True
 fade_out_phase = False
+
 
 if play_caption:
     trans = init_trans
@@ -438,7 +458,8 @@ score = 0
 enemy_hp = 1000
 enemy_max_hp = 1000
 
-show_death = True
+player_dead = False
+enemy_dead = False
 
 while RUN_FLAG:
     CLOCK.tick(FPS)
@@ -509,15 +530,32 @@ while RUN_FLAG:
 
     # Player's dead. EXPLOSION!!
     if DIE_FLAG:
-        die_explosion1.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion2.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion3.rect = (psuedo_player.rect.centerx + random.randint(-65, 15), psuedo_player.rect.centery + random.randint(-65, 15))
-        die_explosion_group.add(die_explosion1)
+        
+        if player_dead:
+            target_rect = psuedo_player.rect
+            end_messege = "You're DEAD"
+        if enemy_dead:
+            target_rect = enemy.rect
+            end_messege = "VICTORY!"
+        
+        exp_spawn_interval = pygame.time.get_ticks() - last_spawn
+        if len(die_explosion_group) <= 5 and exp_spawn_interval > 200: # ms.
+            random_x = target_rect.centerx + random.randint(-25, 25)
+            random_y = target_rect.centery + random.randint(-25, 25)
+            die_exp = Die_Explosion(random_x, random_y)
+            die_explosion_group.add(die_exp)
+            last_spawn = pygame.time.get_ticks()
+        
+        for die_exp in die_explosion_group:
+            if die_exp.ended:
+                die_explosion_group.remove(die_exp)
+
+##        die_explosion_group.add(die_explosion1)
         die_explosion_group.update(pygame.time.get_ticks())
         die_explosion_group.draw(screen)
-        show_text("You're DEAD",
-                          screct.centerx - 6*11,
-                          screct.centery - 12)
+        show_text(end_messege,
+                  screct.centerx - 6*11,
+                  screct.centery - 12)
         current_die_time = pygame.time.get_ticks()
         if current_die_time - pre_die_time >= 5000:
             RUN_FLAG = False
@@ -527,27 +565,33 @@ while RUN_FLAG:
     if not DIE_FLAG:
         bullet_group.draw(screen)
         bullet_group.update()
+    if not DIE_FLAG:
+        pre_die_time = pygame.time.get_ticks()
     for bullet in bullet_group:
         if not screct.colliderect(bullet.rect):
             # Remove bullets that out of screen.
             bullet_group.remove(bullet)
         for spr in pygame.sprite.spritecollide(bullet, enemy_group, False):
-            # Insert on-hit-animation here.
+            # Insert on-hit-animation here. -> Done.
+            
             colcenterx = (spr.rect.centerx + bullet.rect.centerx)/2
             colcentery = (spr.rect.centery + bullet.rect.centery)/2
             print(colcenterx, colcentery)
+            
             Explode_group.add(
                 Explode(
-                    colcenterx, colcentery))
+                    *bullet.rect.center))
             bullet_group.remove(bullet)
             hits += 1
             enemy_hp -= player_atk
+                
             if enemy_hp <= 0:
-                show_text("Victory!",
-                          screct.centerx - 6*11,
-                          screct.centery + 16)
+##                show_text("Victory!",
+##                          screct.centerx - 6*11,
+##                          screct.centery + 16)
                 print("Exit by victory.")
-                RUN_FLAG = False
+                DIE_FLAG = True
+                enemy_dead = True
 
     # Enemy:
     if not DIE_FLAG:
@@ -558,13 +602,16 @@ while RUN_FLAG:
             # Remove bullets that out of screen.
             enemy_bullet_group.remove(ebullet)
         for espr in  pygame.sprite.spritecollide(ebullet, player_group, False):
-            # Insert on-hit-animation here.
+            # Insert on-hit-animation here. -> Done.
+            
             colcenterx = (espr.rect.centerx + ebullet.rect.centerx)/2
             colcentery = (espr.rect.centery + ebullet.rect.centery)/2
+            cldx, cldy = ebullet.rect.midtop
             print(colcenterx, colcentery)
+            
             Explode_group.add(
                 Explode(
-                    colcenterx, colcentery))
+                    *ebullet.rect.center))
             enemy_bullet_group.remove(ebullet)
             e_hits += 1
 
@@ -572,6 +619,8 @@ while RUN_FLAG:
                 if not DIE_FLAG:
                     pre_die_time = pygame.time.get_ticks()
                 DIE_FLAG = True
+                player_dead = True
+                
     if not DIE_FLAG:
         Explode_group.draw(screen)
         Explode_group.update()
@@ -579,8 +628,6 @@ while RUN_FLAG:
         explode_elapsed = pygame.time.get_ticks() - e.spawntime
         if explode_elapsed > e.lifetime:
             Explode_group.remove(e)
-
-    # ---Insert enemy life instructor here.---
 
     # ---Insert player life instructor here.---
 
@@ -593,6 +640,7 @@ while RUN_FLAG:
     show_text(f'score: {score}', 5, 30 + 5)
     show_text(f'Enemy_hits: {e_hits}', screct.right - 350, screct.bottom - 30)
 
+    # Enemy life intruction.
 
     ratio = int(600*(enemy_hp/enemy_max_hp))
     if ratio < 0: ratio = 0
