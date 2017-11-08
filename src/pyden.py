@@ -12,6 +12,10 @@ except:
 try:
     import config as cfg
     import snowflake as snf
+    import explode as exp
+    import bullet as blt
+    import die_explosion as d_exp
+    import consumables as csb
 except:
     raise
 	
@@ -85,25 +89,13 @@ def show_text(text, x, y):
     screen.blit(text, (x, y))
 
 
-class Explode(pygame.sprite.Sprite):
 
-    def __init__(self, cx, cy):
-        super(Explode, self).__init__()
-        self.image = explode
-        self.rect = self.image.get_rect()
-        self.rect.center = (cx, cy)
-        self.spawntime = pygame.time.get_ticks()
-        self.lifetime = 0.07 * 1000
-
-    def update(self):
-        pass
-# End of 'Explode'.
 
 
 
 SNOWFLAKE_GROUP = pygame.sprite.Group()
 for i in range(FLAKES):
-    s = snf.SnowFlake(rdsize,rdgray,rdspeed,shftspeed,W_HEIGHT,W_WIDTH)
+    s = snf.SnowFlake(rdsize, rdgray, rdspeed, shftspeed, W_HEIGHT,W_WIDTH)
     s.rect.centerx = random.randrange(0, W_WIDTH)
     s.rect.centery = random.randrange(0, W_HEIGHT)
     SNOWFLAKE_GROUP.add(s)
@@ -194,11 +186,11 @@ class Hitbox(pygame.sprite.Sprite):
         ctx = self.rect.centerx
         top = self.rect.top
         shift = self.bullet_shift
-        bullet_obj = Bullet(ctx, top - shift)
+        bullet_obj = blt.Bullet(ctx, top - shift, rdyellow)
         if self.isenemy is True:
             # Add random shift for bullet?
-            bullet_obj = Bullet(
-                ctx, self.rect.bottom + shift, direct='DOWN', size='L')
+            bullet_obj = blt.Bullet(
+                ctx, self.rect.bottom + shift, rdyellow, direct='DOWN', size='L')
         group.add(bullet_obj)
 ##        self.fire_sfx.play()
         return None
@@ -225,97 +217,11 @@ class Hitbox(pygame.sprite.Sprite):
             self.rect.move_ip(-self.move_h_rate, 0)
 # End of 'Hitbox'.
 
-class Bullet(pygame.sprite.Sprite):
 
-    def __init__(self, x, y, *, direct='UP', size='S'):
-        super(Bullet, self).__init__()
-        self.direct = direct
-        bullet_size = {'S': (2, 16),
-                       'M': (3, 20),
-                       'L': (5, 26)}
-        size = bullet_size[size]
-        self.image = pygame.Surface(size)
-        self.image.fill(rdyellow())
-        self.rect = self.image.get_rect()
 
-        self.rect.center = (x, y)
 
-        self.projectspd = 20
 
-    def update(self):
-        if self.direct == 'UP':
-            self.rect.centery -= self.projectspd
-        if self.direct == 'DOWN':
-            self.rect.centery += self.projectspd
-# End of 'Bullet'.
 
-class Consumables(pygame.sprite.Sprite):
-
-    def __init__(self):
-        super(Consumables, self).__init__()
-        
-        size_list = [
-            ['S', (7, 7)], ['M', (10, 10)], ['L', (14, 14)]
-            ]
-        score_dict = {
-            'S': 1, 'M': 3, 'L': 7
-            }
-        
-        size, vol = random.choice(size_list)
-        self.image = pygame.Surface(vol)
-        self.image.fill(cfg.color.white)
-        self.rect = self.image.get_rect()
-        self.rect.center = (random.randint(0 + 15, W_WIDTH - 15), 15)
-        self.score = score_dict[size]
-        self.speed = 9
-        self.direction = [random.choice((1, -1)), 1] # x, y direction
-        self.lifetime = pygame.time.get_ticks() + 10 * 1000 # 10 seconds
-    
-    def update(self):
-        if self.rect.top < screct.top or self.rect.bottom > screct.bottom:
-            self.direction[1] *= -1 # Switch direction
-        if self.rect.left < screct.left or self.rect.right > screct.right:
-            self.direction[0] *= -1
-        self.rect.centerx += self.direction[0] * self.speed
-        self.rect.centery += self.direction[1] * self.speed
-
-        if self.lifetime - pygame.time.get_ticks() < 700:
-            self.image.fill((255, 0, 0))
-# End of 'Consumables'.
-
-class Die_Explosion(pygame.sprite.Sprite):
-    
-    def __init__(self, cx, cy):
-        super(Die_Explosion, self).__init__()
-        self.center = cx, cy
-        self.image = None
-        self.subrect = 0, 0, 50, 50
-        self.master_image = pygame.image.load("images/stone.png").convert_alpha()
-        self.animation_list = []
-        for y in range(4):
-            for x in range(5):
-                self.animation_list.append((x*50, y*50, 50, 50))
-        self.index = 0
-        self.spawntime = pygame.time.get_ticks()
-        
-        self.zero = self.spawntime
-        self.stay_interval = 300 # ms.
-
-        self.ended = False
-        
-    def update(self, current_time):
-        rect = self.animation_list[self.index]
-        self.index += 1
-        if self.index > len(self.animation_list) - 1:
-            self.zero = self.zero or current_time
-            self.index = 0
-            if (current_time - self.zero) > self.stay_interval:
-                self.ended = True
-        
-        self.image = self.master_image.subsurface(rect)
-        self.rect = self.image.get_rect()
-        self.rect.center = self.center
-#End of 'Die_Explosion'
 
 #---------------------------------------------------------------------
 
@@ -338,7 +244,7 @@ enemy_bullet_group = pygame.sprite.Group()
 
 Explode_group = pygame.sprite.Group()
 
-pill = Consumables()
+pill = csb.Consumables(W_WIDTH)
 
 pill_group = pygame.sprite.Group()
 pill_group.add(pill)
@@ -503,7 +409,7 @@ while RUN_FLAG:
     if len(pill_group) <= 15:
         if dice(5):
             # Spawn pills at 5% chance of each frame.
-            pill = Consumables()
+            pill = csb.Consumables(W_WIDTH)
             pill_group.add(pill)
     for p in pill_group:
         if p.lifetime < pygame.time.get_ticks():
@@ -512,7 +418,7 @@ while RUN_FLAG:
             score += p.score
             pill_group.remove(p)
     if not DIE_FLAG:
-        pill_group.update()
+        pill_group.update(screct)
         pill_group.draw(screen)
 
     # Draw player on screen.
@@ -542,7 +448,7 @@ while RUN_FLAG:
         if len(die_explosion_group) <= 5 and exp_spawn_interval > 200: # ms.
             random_x = target_rect.centerx + random.randint(-25, 25)
             random_y = target_rect.centery + random.randint(-25, 25)
-            die_exp = Die_Explosion(random_x, random_y)
+            die_exp = d_exp.Die_Explosion(random_x, random_y)
             die_explosion_group.add(die_exp)
             last_spawn = pygame.time.get_ticks()
         
@@ -579,8 +485,8 @@ while RUN_FLAG:
             print(colcenterx, colcentery)
             
             Explode_group.add(
-                Explode(
-                    *bullet.rect.center))
+                exp.Explode(
+                    *bullet.rect.center, explode))
             bullet_group.remove(bullet)
             hits += 1
             enemy_hp -= player_atk
@@ -610,8 +516,8 @@ while RUN_FLAG:
             print(colcenterx, colcentery)
             
             Explode_group.add(
-                Explode(
-                    *ebullet.rect.center))
+                exp.Explode(
+                    *ebullet.rect.center, explode))
             enemy_bullet_group.remove(ebullet)
             e_hits += 1
 

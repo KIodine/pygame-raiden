@@ -6,7 +6,7 @@ except:
 
 class SnowFlake(pygame.sprite.Sprite):
 
-    def __init__(self,rdsize,rdgray,rdspeed,shftspeed,W_HEIGHT,W_WIDTH):
+    def __init__(self, rdsize, rdgray, rdspeed, shftspeed, W_HEIGHT,W_WIDTH):
         super(SnowFlake, self).__init__()
         self.image = pygame.Surface(*rdsize())
         self.image.fill(rdgray())
