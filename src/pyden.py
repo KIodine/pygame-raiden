@@ -44,13 +44,6 @@ FLAKES = 512
 FPS = cfg.FPS
 
 
-try:
-    sound_file = 'music/beep1.ogg' # Need to be replaced.
-    bgm = 'music/Diebuster OST- Escape Velocity.mp3'
-    volume_ratio = 0.25
-except:
-    raise
-
 #Constants set.------------------------------------------------------
 
 pygame.init()
@@ -70,12 +63,19 @@ ufo = pygame.image.load("../ufo.gif").convert_alpha()
 # Use 'convert_alpha()' for images have alpha channel.
 
 # It fails if the enviroment has no audio driver.
+try:
+    bullet_sound = "music/match0.wav"
+    #sound_file = 'music/beep1.ogg' # Need to be replaced.
+    #bgm = 'music/Diebuster OST- Escape Velocity.mp3'
+    bgm = cfg.bgm
+    dead_bgm = cfg.dead_bgm
+    volume_ratio = cfg.volume_ratio
 
-##shooting_sfx = pygame.mixer.Sound(sound_file)
-##shooting_sfx.set_volume(volume_ratio)
-
-##pygame.mixer.music.load(bgm)
-##pygame.mixer.music.set_volume(volume_ratio)
+    pygame.mixer.music.load(bgm)
+    pygame.mixer.music.set_volume(volume_ratio)
+    pygame.mixer.music.play()
+except:
+    raise
 
 #Initialize complete.-------------------------------------------------
 
@@ -122,6 +122,7 @@ class Hitbox(pygame.sprite.Sprite):
                  ):
         super(Hitbox, self).__init__()
         self.isenemy = enemy
+        self.ratio = ratio
         color = color or (0, 255, 0)
         if ( image == None ):
             w = w or 70
@@ -140,8 +141,8 @@ class Hitbox(pygame.sprite.Sprite):
             self.picrect = self.animation_list[self.index]
             self.image = self.wholepic.subsurface(self.picrect)
         
-        picture = pygame.transform.scale( self.image, (int(w*ratio), int(h*ratio)) )
-        self.rect = picture.get_rect()
+        self.image = pygame.transform.rotozoom( self.image, 0, ratio )
+        self.rect = self.image.get_rect()
         
         self.rect.centery = y or screct.centery # Initial place aligned with screen.
         self.rect.centerx = x or screct.centerx
@@ -205,11 +206,11 @@ class Hitbox(pygame.sprite.Sprite):
         ctx = self.rect.centerx
         top = self.rect.top
         shift = self.bullet_shift
-        bullet_obj = blt.Bullet(ctx, top - shift, rdyellow)
+        bullet_obj = blt.Bullet(ctx, top - shift, rdyellow, self.isenemy)
         if self.isenemy is True:
             # Add random shift for bullet?
             bullet_obj = blt.Bullet(
-                ctx, self.rect.bottom + shift, rdyellow, direct='DOWN', size='L')
+                ctx, self.rect.bottom + shift, rdyellow, self.isenemy, direct='DOWN', size='L')
         group.add(bullet_obj)
 ##        self.fire_sfx.play()
         return None
@@ -220,7 +221,7 @@ class Hitbox(pygame.sprite.Sprite):
             if self.index > len(self.animation_list) - 1:
                 self.index = 0
             self.picrect = self.animation_list[self.index]
-            self.image = self.wholepic.subsurface(self.picrect)
+            self.image = pygame.transform.rotozoom( self.wholepic.subsurface(self.picrect), 0, self.ratio )
             self._nlmove()
             elapsed_setdest = pygame.time.get_ticks() - self._last_setdest
             if elapsed_setdest > 2 * 1000:
@@ -460,7 +461,12 @@ while RUN_FLAG:
     
     # Player's dead. EXPLOSION!!
     if DIE_FLAG:
-        
+        try:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load(dead_bgm)
+            pygame.mixer.music.play(0)
+        except:
+            raise
         if player_dead:
             target_rect = psuedo_player.rect
             end_messege = "You're DEAD"

@@ -60,8 +60,12 @@ font_msjh = 'fonts/msjh.ttf'
 
 # Sounds.
 play_bgm = True
-firing_sound = 'music/beep1.ogg'
-bgm = 'music/Diebuster OST- Escape Velocity.mp3'
+firing_sound = "music/match0.wav"
+enemy_firing_sound = "music/badswap.wav"
+#firing_sound = 'music/beep1.ogg'
+bgm = "music/tetrisb.mid"
+dead_bgm = "music/Trap-music.mp3"
+#bgm = 'music/Diebuster OST- Escape Velocity.mp3'
 volume_ratio = 0.25
 
 # Game content.-------------------------------------------------------
