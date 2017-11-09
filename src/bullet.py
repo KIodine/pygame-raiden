@@ -20,14 +20,17 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.center = (x, y)
 
         self.projectspd = 20
-        if isenemy:
-            sound_file = cfg.enemy_firing_sound
-        else:
-            sound_file = cfg.firing_sound
-        volume_ratio = cfg.volume_ratio
-        shooting_sfx = pygame.mixer.Sound(sound_file)
-        shooting_sfx.set_volume(volume_ratio)
-        shooting_sfx.play()
+        try:
+            if isenemy:
+                sound_file = cfg.enemy_firing_sound
+            else:
+                sound_file = cfg.firing_sound
+            volume_ratio = cfg.volume_ratio
+            shooting_sfx = pygame.mixer.Sound(sound_file)
+            shooting_sfx.set_volume(volume_ratio)
+            shooting_sfx.play()
+        except:
+            pass
 
     def update(self):
         if self.direct == 'UP':

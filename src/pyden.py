@@ -75,7 +75,7 @@ try:
     pygame.mixer.music.set_volume(volume_ratio)
     pygame.mixer.music.play()
 except:
-    raise
+    pass
 
 #Initialize complete.-------------------------------------------------
 
@@ -466,7 +466,7 @@ while RUN_FLAG:
             pygame.mixer.music.load(dead_bgm)
             pygame.mixer.music.play(0)
         except:
-            raise
+            pass
         if player_dead:
             target_rect = psuedo_player.rect
             end_messege = "You're DEAD"
