@@ -26,6 +26,8 @@ BLACK = cfg.color.black
 
 FPS = 60
 
+DEV_MODE = True
+
 # Init window.
 
 pygame.init()
@@ -82,26 +84,18 @@ Display text on x, y.\
 
 # Interactive objects.
 
-    # Define Charactor.
+    # Define Animation_core.
 
-class Character(pygame.sprite.Sprite):
-
+class Animation_core():
+    '''Resolve single picture to animation list.'''
     def __init__(self,
                  *,
-                 init_x=0,
-                 init_y=0,
                  image=None,
                  w=70,
                  h=70,
                  col=1,
                  row=1
                  ):
-        '''\
-If given a image, set 'w' and 'h' to the unit size of image,
-'col' and 'row' for frames.\
-'''
-        # Must be explictly.
-        super(Character, self).__init__()
         
         if image is None:
             self.image = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -123,6 +117,39 @@ If given a image, set 'w' and 'h' to the unit size of image,
             ani_rect = self.animation_list[self.index]
             self.ani_len = len(self.animation_list)
             self.image = self.master_image.subsurface(ani_rect)
+        
+
+    # End of Animation_core.
+
+    # Define Charactor.
+
+class Character(pygame.sprite.Sprite):
+
+    def __init__(self,
+                 *,
+                 init_x=0,
+                 init_y=0,
+                 image=None,
+                 w=70,
+                 h=70,
+                 col=1,
+                 row=1
+                 ):
+        '''\
+If given a image, set 'w' and 'h' to the unit size of image,
+'col' and 'row' for frames.\
+'''
+        # Must be explictly.
+        super(Character, self).__init__()
+
+        Animation_core.__init__(
+            self,
+            image=image,
+            w=w,
+            h=h,
+            col=col,
+            row=row
+            )
 
         self.rect.center = init_x, init_y
 
@@ -135,7 +162,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         self.fps = 24
         self.last_draw = pygame.time.get_ticks()
 
-    def move(self, keypress):
+    def actions(self, keypress):
         # Move: W A S D.
         # Note: May integrated with other actions and rename as 'actions'.
         if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
@@ -163,12 +190,13 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 self.image = self.master_image.subsurface(ani_rect)
                 self.last_draw = current_time
         # Draw hitbox frame.
-        frame = pygame.draw.rect(
-            screen,
-            (0, 255, 0, 255),
-            self.rect,
-            1
-            )
+        if DEV_MODE:
+            frame = pygame.draw.rect(
+                screen,
+                (0, 255, 0, 255),
+                self.rect,
+                1
+                )
         
     # End of Character.
 
@@ -188,31 +216,15 @@ class Animated_object(pygame.sprite.Sprite):
                  ):
 
         super(Animated_object, self).__init__()
-        
-        if image is None:
-            self.image = pygame.Surface(
-                (50, 50),
-                pygame.SRCALPHA
-                )
-            self.image.fill((0, 0, 0, 0))
-            pygame.draw.rect(screen, (0, 255, 0, 255), (0, 0, w, h), 1)
-            self.rect = self.image.get_rect()
-            self.index = None
-        else:
-            self.index = 0
-            self.animation_list = []
-            self.master_image = image
-            for i in range(col):
-                for j in range(row):
-                    self.animation_list.append(
-                        [i*w, j*h, w, h]
-                        )
-            self.rect = pygame.rect.Rect(0, 0, w, h)
-            # Set a smaller collide rect for better player experience?
-            ani_rect = self.animation_list[self.index]
-##            print(self.master_image.get_rect())
-            self.ani_len = len(self.animation_list)
-            self.image = self.master_image.subsurface(ani_rect)
+
+        Animation_core.__init__(
+            self,
+            image=image,
+            w=w,
+            h=h,
+            col=col,
+            row=row
+            )
 
         self.rect.center = init_x, init_y
 
@@ -235,17 +247,73 @@ class Animated_object(pygame.sprite.Sprite):
                 1
                 )
             
-        # Draw hitbox frame.
-        frame = pygame.draw.rect(
-            screen,
-            (0, 255, 0, 255),
-            self.rect,
-            1
-            )
+        if DEV_MODE:
+            frame = pygame.draw.rect(
+                screen,
+                (0, 255, 0, 255),
+                self.rect,
+                1
+                )
 
 
     # End of Animated_object.
-    
+
+    # Define Projectile.
+
+class Projectile(pygame.sprite.Sprite):
+
+    def __init__(self,
+                 *,
+                 init_x=0,
+                 init_y=0,
+                 direct=-1,
+                 image=None,
+                 w=50,
+                 h=50,
+                 col=1,
+                 row=1
+                 ):
+        
+        super(Projectile, self).__init__()
+
+        Animation_core.__init__(
+            self,
+            image=image,
+            w=w,
+            h=h,
+            col=col,
+            row=row
+            )
+        
+        self.rect.center = init_x, init_y
+
+        self.fps = 12
+        self.last_draw = pygame.time.get_ticks()
+        
+    def update(self, current_time):
+        if self.index is not None:
+            elapsed_time = current_time - self.last_draw
+            if elapsed_time > self.fps**-1 * 1000:
+                self.index += 1
+                ani_rect = self.animation_list[self.index%self.ani_len]
+                self.image = self.master_image.subsurface(ani_rect)
+                self.last_draw = current_time
+        else:
+            pygame.draw.rect(
+                screen,
+                (0, 255, 0, 255),
+                self.rect,
+                1
+                )
+            
+        if DEV_MODE:
+            pygame.draw.rect(
+                    screen,
+                    (255, 0, 0, 255),
+                    self.rect,
+                    1
+                    )
+        
 # End of interactive objects.
 
 # Init objects.
@@ -291,17 +359,23 @@ while Run_flag:
     screen.fill(BLACK)
     screen.blit(test_grid_partial, (0, 0))
 
-    for event in pygame.event.get():
+    # Global hotkey actions.
+    events = pygame.event.get()
+    for event in events:
         if event.type == pygame.QUIT:
             Run_flag = False
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
+            key = event.key
+            if key == pygame.K_ESCAPE:
                 Run_flag = False
                 print("<Exit by 'ESC' key>")
+            if key == pygame.K_F2:
+                DEV_MODE = not DEV_MODE
+                print(f"<DEV_MODE={DEV_MODE}>")
 
     keypress = pygame.key.get_pressed()
 
-    player.move(keypress)
+    player.actions(keypress)
 
     # Game process.
 
@@ -314,22 +388,22 @@ while Run_flag:
     # End of game process.
 
     # Debug frame.
-
-        # Show character rect infos.
-    show_text(
-        player.rect,
-        player.rect.right,
-        player.rect.bottom,
-        color=cfg.color.black
-        )
-    
-        # Show key infos.
-    show_text(
-        event,
-        0,
-        0,
-        color=cfg.color.black
-        )
+    if DEV_MODE:
+            # Show character rect infos.
+        show_text(
+            player.rect,
+            player.rect.right,
+            player.rect.bottom,
+            color=cfg.color.black
+            )
+        
+            # Show key infos.
+        show_text(
+            event,
+            0,
+            0,
+            color=cfg.color.black
+            )
 
     # End of debug frame.
 
