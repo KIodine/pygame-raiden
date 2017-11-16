@@ -161,19 +161,27 @@ If given a image, set 'w' and 'h' to the unit size of image,
         self.move_x_rate = 6
         self.move_y_rate = 6
 
+        now = pygame.time.get_ticks() # Get current time.
+
         self.fire_rate = 70
-        self.last_fire = pygame.time.get_ticks()
+        self.last_fire = now
 
         # Set charge attr.
         self.current_charge = 0
         self.max_charge = 1000
         self.charge_value = 3
         self.charge_speed = 0.01 # second
-        self.last_charge = pygame.time.get_ticks()
+        self.last_charge = now
+
+        self.current_ult = 0
+        self.max_ult = 2000
+        self.ult_value = 3
+        self.ult_speed = 0.01
+        self.last_ult_charge = now
 
         # Set fps.
         self.fps = 24
-        self.last_draw = pygame.time.get_ticks()
+        self.last_draw = now
 
     def actions(self, keypress):
         # Move: W A S D.
@@ -187,13 +195,19 @@ If given a image, set 'w' and 'h' to the unit size of image,
         if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
             self.rect.move_ip(self.move_x_rate, 0)
 
-        if keypress[pygame.K_KP4]:
-            print("<Pressed 'KP4'>")
+        if keypress[pygame.K_KP8]:
+            print("<Pressed 'KP8'>")
 
         if keypress[pygame.K_j]:
             ratio = self.current_charge/self.max_charge
             if ratio == 1:
                 self.current_charge = 0
+            pass
+
+        if keypress[pygame.K_k]:
+            ratio = self.current_ult/self.max_ult
+            if ratio == 1:
+                self.current_ult = 0
             pass
 
     def _create_bullet(self):
@@ -224,6 +238,14 @@ If given a image, set 'w' and 'h' to the unit size of image,
             self.current_charge += self.charge_value
             if self.current_charge > self.max_charge:
                 self.current_charge = self.max_charge
+
+        elapsed_ult_charge = current_time - self.last_ult_charge
+        if elapsed_ult_charge > self.ult_speed * 1000\
+           and self.current_ult < self.max_ult:
+            self.last_ult_charge = current_time
+            self.current_ult += self.ult_value
+            if self.current_ult > self.max_ult:
+                self.current_ult = self.max_ult
         
     # End of Character.
 
@@ -348,18 +370,27 @@ class Projectile(pygame.sprite.Sprite):
     # Define Skill_panel.
 
 class Skill_panel(pygame.sprite.Sprite):
-    '''Skill charge instructor'''
+    '''Skill charge instructor.'''
     def __init__(self,
                  *,
                  x_pos=0,
                  y_pos=0,
-                 c_expand=25,
+                 border_expand=25,
+                 cur_resource='',
+                 max_resource='',
                  image=None,
                  w=100,
                  h=100,
                  col=1,
                  row=1
                  ):
+
+        if not (cur_resource or max_resource):
+            raise ValueError("Cannot monitor empty resource name")
+
+        self.cur_resource = cur_resource
+        self.max_resource = max_resource
+        
         super(Skill_panel, self).__init__()
 
         Animation_core.__init__(
@@ -373,35 +404,42 @@ class Skill_panel(pygame.sprite.Sprite):
 
         self.rect.topleft = x_pos, y_pos
 
-        self.c_expand = c_expand
+        self.border_expand = border_expand
 
     def update(
         self,
-        current_val,
-        max_val
+        player: 'Player'
         ):
+        current_val = getattr(player, self.cur_resource)
+        max_val = getattr(player, self.max_resource)
         ratio = current_val/max_val
-        outer_rect = self.rect.inflate(self.c_expand, self.c_expand)
+        outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
+        
+        surf = pygame.Surface(outer_rect.size, pygame.SRCALPHA)
+        surf_rect = outer_rect.copy()
+        surf_rect.center = surf.get_rect().center
+        arc_rect = surf_rect.inflate(-10, -10)
+        
         arc_ratio = ratio * (2*math.pi)
 ##        print(f"<Panel, arc_ratio={arc_ratio}>")
         pygame.draw.arc(
-            screen,
-            (47, 89, 158, 255),
-            outer_rect,
+            surf,
+            (47, 89, 158, 190),
+            arc_rect,
             (math.pi/2),
             (math.pi/2 + arc_ratio),
-            7
+            15
             )
         if ratio == 1:
-            c_center = self.rect.center
+            c_center = outer_rect.center
             pygame.draw.circle(
-                screen,
-                (0, 255, 255, 255),
-                c_center,
-                int(outer_rect.width/2 + 6),
+                surf,
+                (0, 255, 255, 190),
+                surf_rect.center,
+                int(outer_rect.width/2),
                 3
                 )
-##        print(self.rect.topleft)
+        screen.blit(surf, (outer_rect.topleft))
 
 
     # End of Skill panel.
@@ -439,12 +477,30 @@ animated_object_group.add(explode_animation)
 
     # Skill panel.
 charge = Skill_panel(
-    x_pos=screen_rect.w-160,
-    y_pos=screen_rect.h-140
+    x_pos=screen_rect.w-180,
+    y_pos=screen_rect.h-170,
+    border_expand=100,
+    cur_resource='current_ult',
+    max_resource='max_ult',
+    w=100,
+    h=100
+    )
+
+charge2 = Skill_panel(
+    x_pos=screen_rect.w-350,
+    y_pos=screen_rect.h-110,
+    border_expand=50,
+    cur_resource='current_charge',
+    max_resource='max_charge',
+    w=75,
+    h=75
     )
 
 UI_group = pygame.sprite.Group()
-UI_group.add(charge)
+UI_group.add(
+    charge,
+    charge2
+    )
 
 # Init game loop.
 
@@ -473,6 +529,10 @@ while Run_flag:
             if key == pygame.K_F2:
                 DEV_MODE = not DEV_MODE
                 print(f"<DEV_MODE={DEV_MODE}>")
+            if key == pygame.K_F3:
+                print("<Charge resource to max>")
+                player.current_charge = player.max_charge
+                player.current_ult = player.max_ult
 
     keypress = pygame.key.get_pressed()
 
@@ -488,8 +548,7 @@ while Run_flag:
 
     UI_group.draw(screen)
     UI_group.update(
-        player.current_charge,
-        player.max_charge
+        player
         )
 
 ##    print(player.current_charge, player.max_charge)
@@ -516,7 +575,7 @@ while Run_flag:
 
     # End of debug frame.
 
-    pygame.display.flip()
+    pygame.display.flip() # Update screen.
 
 # End of game loop.
 pygame.quit()
