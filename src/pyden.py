@@ -1,608 +1,340 @@
 import sys
 import os
 import random
-import time
-import math
 
-try:
-    import pygame
-except:
-    raise
+import pygame
+import config as cfg
 
-try:
-    import config as cfg
-    import snowflake as snf
-    import explode as exp
-    import bullet as blt
-    import die_explosion as d_exp
-    import consumables as csb
-except:
-    raise
-	
-
-# Interstellar simulator 2017 ver. 0.11
+# Pyden 0.15.1 alpha
 
 rdgray = lambda: random.choice(cfg.gray_scale_range)
-rdyellow = lambda: random.choice(cfg.yellow_range)
 rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
 shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
 rdsize = lambda: random.choices(
-    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1)
+    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1
+    )
+rdyellow = lambda: random.choice(cfg.yellow_range)
 
 dice = lambda chn: True if chn > random.random() * 100 else False
-print (rdsize)
-#Simple functions set.------------------------------------------------
 
-# Use random.gause(mu, sigma) to get normal dist?
+# Set constants.
 
 W_WIDTH = cfg.W_WIDTH
 W_HEIGHT = cfg.W_HEIGHT
 DEFAULT_COLOR = cfg.default_bgcolor
 BLACK = cfg.color.black
 
-FLAKES = 512
-FPS = cfg.FPS
+FPS = 60
 
-
-#Constants set.------------------------------------------------------
+# Init window.
 
 pygame.init()
 pygame.display.init()
-pygame.display.set_caption("Interstellar Simulator 2017")
+pygame.display.set_caption("Interstellar")
 
 screen = pygame.display.set_mode(cfg.W_SIZE, 0, 32)
 screen.fill(cfg.color.black)
 
-font = pygame.font.Font('fonts/msjh.ttf', 24)
+screen_rect = screen.get_rect()
 
-screct = screen.get_rect()
-rocket = pygame.image.load("images/rocket02.png").convert_alpha()
-explode_image = 'images/explosion1.png'
-explode = pygame.image.load(explode_image).convert_alpha()
-ufo = pygame.image.load("../ufo.gif").convert_alpha()
-# Use 'convert_alpha()' for images have alpha channel.
+# Load resources.
 
-# It fails if the enviroment has no audio driver.
-try:
-    bullet_sound = "music/match0.wav"
-    #sound_file = 'music/beep1.ogg' # Need to be replaced.
-    #bgm = 'music/Diebuster OST- Escape Velocity.mp3'
-    bgm = cfg.bgm
-    dead_bgm = cfg.dead_bgm
-    volume_ratio = cfg.volume_ratio
+    # Animations and images.
 
-    pygame.mixer.music.load(bgm)
-    pygame.mixer.music.set_volume(volume_ratio)
-    pygame.mixer.music.play()
-except:
-    raise
+test_grid_dir = 'images/Checkered.png'
+# The 'transparent' grid.
+test_grid = pygame.image.load(test_grid_dir).convert_alpha()
+test_grid_partial = test_grid.subsurface(screen_rect)
 
-#Initialize complete.-------------------------------------------------
+explode_dir = 'images/stone.png'
+# A explosion animation named 'stone', uh...
+explode = pygame.image.load(explode_dir).convert_alpha()
 
-def show_text(text, x, y):
-    x, y = x, y
+ufo_dir = 'images/ufo.gif'
+# The ufo.
+ufo = pygame.image.load(ufo_dir).convert_alpha()
+
+    # Fonts.
+msjh_dir = 'fonts/msjh.ttf'
+msjh_24 = pygame.font.Font(msjh_dir, 24)
+msjh_16 = pygame.font.Font(msjh_dir, 16)
+
+# Define simple functions.
+
+def show_text(text: str,
+              x,
+              y,
+              font=msjh_16,
+              color=cfg.color.white
+              ):
+    '''\
+Display text on x, y.\
+'''
     if not isinstance(text, str):
         try:
             text = str(text)
         except:
             raise
-    text = font.render(text, True, (255, 255, 255))
-    # Text is a 'pygame.Surface' object.
-    t_rect = text.get_rect()
-    screen.blit(text, (x, y))
+    rendered_text = font.render(text, True, color)
+    screen.blit(rendered_text, (x, y))
+    
+    return None
 
+# Interactive objects.
 
+    # Define Charactor.
 
-
-
-
-SNOWFLAKE_GROUP = pygame.sprite.Group()
-for i in range(FLAKES):
-    s = snf.SnowFlake(rdsize, rdgray, rdspeed, shftspeed, W_HEIGHT,W_WIDTH)
-    s.rect.centerx = random.randrange(0, W_WIDTH)
-    s.rect.centery = random.randrange(0, W_HEIGHT)
-    SNOWFLAKE_GROUP.add(s)
-
-# ---Create new class for enemy.---
-# use pygame.trasform.rotozoom(Surface, angle, scale) to size-up image.
-
-class Hitbox(pygame.sprite.Sprite):
+class Character(pygame.sprite.Sprite):
 
     def __init__(self,
                  *,
-                 x=None,
-                 y=None,
-                 w=None,
-                 h=None,
-                 color=None,
+                 init_x=0,
+                 init_y=0,
                  image=None,
-                 enemy=False,
-                 ratio=1,
-                 frames=1,
+                 w=70,
+                 h=70,
+                 col=1,
+                 row=1
                  ):
-        super(Hitbox, self).__init__()
-        self.isenemy = enemy
-        self.ratio = ratio
-        color = color or (0, 255, 0)
-        if ( image == None ):
-            w = w or 70
-            h = h or 100
-            
-            self.image = pygame.Surface((w, h))
-            self.image.fill(color)
-            
+        '''\
+If given a image, set 'w' and 'h' to the unit size of image,
+'col' and 'row' for frames.\
+'''
+        # Must be explictly.
+        super(Character, self).__init__()
+        
+        if image is None:
+            self.image = pygame.Surface((w, h), pygame.SRCALPHA)
+            self.rect = self.image.get_rect()
+            self.image.fill((0, 0, 0, 0))
+            pygame.draw.rect(screen, (0, 255, 0, 255), (0, 0, w, h), 1)
+            self.index = None
         else:
-            self.animation_list = []
-            self.wholepic = image
-            for i in range( int(image.get_rect().width/w) ):
-                print( "i=" + str(i) + "w=" + str(w) + "h=" + str(h) )
-                self.animation_list.append((i*w, 0, w, h))
             self.index = 0
-            self.picrect = self.animation_list[self.index]
-            self.image = self.wholepic.subsurface(self.picrect)
-        
-        self.image = pygame.transform.rotozoom( self.image, 0, ratio )
-        self.rect = self.image.get_rect()
-        
-        self.rect.centery = y or screct.centery # Initial place aligned with screen.
-        self.rect.centerx = x or screct.centerx
-        
-        self._dest_x = self.rect.centerx
-        self._dest_y = self.rect.centery
-        
-        self._float_x = self.rect.centerx
-        self._float_y = self.rect.centery
+            self.animation_list = []
+            self.master_image = image
+            for i in range(col):
+                for j in range(row):
+                    self.animation_list.append(
+                        [i*w, j*h, w, h]
+                        )
+            self.rect = pygame.rect.Rect(0, 0, w, h)
+            # Set a smaller collide rect for better player experience?
+            ani_rect = self.animation_list[self.index]
+            self.ani_len = len(self.animation_list)
+            self.image = self.master_image.subsurface(ani_rect)
 
-        self.move_v_rate = 15
-        self.move_h_rate = 15
+        self.rect.center = init_x, init_y
 
-        self.move_dir = random.choice((1, -1)) # regulating move of sprite
+        self.move_x_rate = 6
+        self.move_y_rate = 6
 
-        self.bullet_shift = 25
-
-        self.fire_rate = 70 # ms
+        self.fire_rate = 70
         self.last_fire = pygame.time.get_ticks()
 
-##        self.fire_sfx = shooting_sfx
-##        self.fire_sfx.set_volume(volume_ratio)
+        self.fps = 24
+        self.last_draw = pygame.time.get_ticks()
 
-        self._last_setdest = pygame.time.get_ticks()
+    def move(self, keypress):
+        # Move: W A S D.
+        # Note: May integrated with other actions and rename as 'actions'.
+        if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
+            self.rect.move_ip(0, -self.move_y_rate)
+        if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
+            self.rect.move_ip(0, self.move_y_rate)
+        if keypress[pygame.K_a] and self.rect.left > screen_rect.left:
+            self.rect.move_ip(-self.move_x_rate, 0)
+        if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
+            self.rect.move_ip(self.move_x_rate, 0)
 
-    def move(self, v):
-        if v == 'W' and self.rect.top > screct.top:
-            self.rect.move_ip(0, -self.move_v_rate)
-        if v == 'S' and self.rect.bottom < screct.bottom:
-            self.rect.move_ip(0, self.move_v_rate)
-        if v == 'A' and self.rect.left > screct.left:
-            self.rect.move_ip(-self.move_h_rate, 0)
-        if v == 'D' and self.rect.right < screct.right:
-            self.rect.move_ip(self.move_h_rate, 0)
+        if keypress[pygame.K_KP4]:
+            print("<Pressed 'KP4'>")
 
-    def _set_dest(self, x, y):
-        self._dest_x = int(x)
-        self._dest_y = int(y)
-        return None
+    def _create_bullet(self):
+        # Not finished yet.
+        pass
 
-    def _nlmove(self):
-        if self.rect.centerx != self._dest_x:
-            delta_x = 0.1 * math.ceil(self._dest_x - self.rect.centerx)
-            self.rect.centerx += int(delta_x)
-##            print(delta_x)
-        if self.rect.centery != self._dest_y:
-            delta_y = 0.1 * math.ceil(self._dest_y - self.rect.centery)
-            self.rect.centery += int(delta_y)
-##            print(delta_y)
+    def update(self, current_time):
+        if self.index is not None:
+            elapsed_time = current_time - self.last_draw
+            if elapsed_time > self.fps**-1 * 1000:
+                self.index += 1
+                ani_rect = self.animation_list[self.index%self.ani_len]
+                self.image = self.master_image.subsurface(ani_rect)
+                self.last_draw = current_time
+        # Draw hitbox frame.
+        frame = pygame.draw.rect(
+            screen,
+            (0, 255, 0, 255),
+            self.rect,
+            1
+            )
+        
+    # End of Character.
 
-    def create_bullet(self, group):
-        fire_now = pygame.time.get_ticks()
-        elapsed_fire = fire_now - self.last_fire
-        if not (elapsed_fire > self.fire_rate):
-            # Fire rate limit.
-            return None
+    # Define Animated_object
+
+class Animated_object(pygame.sprite.Sprite):
+
+    def __init__(self,
+                 *,
+                 init_x=0,
+                 init_y=0,
+                 image=None,
+                 w=0,
+                 h=0,
+                 col=1,
+                 row=1
+                 ):
+
+        super(Animated_object, self).__init__()
+        
+        if image is None:
+            self.image = pygame.Surface(
+                (50, 50),
+                pygame.SRCALPHA
+                )
+            self.image.fill((0, 0, 0, 0))
+            pygame.draw.rect(screen, (0, 255, 0, 255), (0, 0, w, h), 1)
+            self.rect = self.image.get_rect()
+            self.index = None
         else:
-            self.last_fire = fire_now
-        
-##        self.fire_sfx.stop()
-        ctx = self.rect.centerx
-        top = self.rect.top
-        shift = self.bullet_shift
-        bullet_obj = blt.Bullet(ctx, top - shift, rdyellow, self.isenemy)
-        if self.isenemy is True:
-            # Add random shift for bullet?
-            bullet_obj = blt.Bullet(
-                ctx, self.rect.bottom + shift, rdyellow, self.isenemy, direct='DOWN', size='L')
-        group.add(bullet_obj)
-##        self.fire_sfx.play()
-        return None
+            self.index = 0
+            self.animation_list = []
+            self.master_image = image
+            for i in range(col):
+                for j in range(row):
+                    self.animation_list.append(
+                        [i*w, j*h, w, h]
+                        )
+            self.rect = pygame.rect.Rect(0, 0, w, h)
+            # Set a smaller collide rect for better player experience?
+            ani_rect = self.animation_list[self.index]
+##            print(self.master_image.get_rect())
+            self.ani_len = len(self.animation_list)
+            self.image = self.master_image.subsurface(ani_rect)
 
-    def update(self):
-        if self.isenemy:
-            self.index += 1
-            if self.index > len(self.animation_list) - 1:
-                self.index = 0
-            self.picrect = self.animation_list[self.index]
-            self.image = pygame.transform.rotozoom( self.wholepic.subsurface(self.picrect), 0, self.ratio )
-            self._nlmove()
-            elapsed_setdest = pygame.time.get_ticks() - self._last_setdest
-            if elapsed_setdest > 2 * 1000:
-                self._set_dest(
-                    random.randint(
-                        0 + self.rect.width, screct.right - self.rect.width
-                        ),
-                    random.randint(30, 90)
-                    )
-                print(self._dest_x, self._dest_y)
-                self._last_setdest = pygame.time.get_ticks()
-        
-        if self.rect.left < screct.left or self.rect.right > screct.right:
-            self.move_dir *= -1
-        if self.move_dir > 0:
-            self.rect.move_ip(self.move_h_rate, 0)
-        if self.move_dir < 0:
-            self.rect.move_ip(-self.move_h_rate, 0)
-# End of 'Hitbox'.
+        self.rect.center = init_x, init_y
 
+        self.fps = 12
+        self.last_draw = pygame.time.get_ticks()
 
-
-
+    def update(self, current_time):
+        if self.index is not None:
+            elapsed_time = current_time - self.last_draw
+            if elapsed_time > self.fps**-1 * 1000:
+                self.index += 1
+                ani_rect = self.animation_list[self.index%self.ani_len]
+                self.image = self.master_image.subsurface(ani_rect)
+                self.last_draw = current_time
+        else:
+            pygame.draw.rect(
+                screen,
+                (0, 255, 0, 255),
+                self.rect,
+                1
+                )
+            
+        # Draw hitbox frame.
+        frame = pygame.draw.rect(
+            screen,
+            (0, 255, 0, 255),
+            self.rect,
+            1
+            )
 
 
+    # End of Animated_object.
+    
+# End of interactive objects.
 
-#---------------------------------------------------------------------
+# Init objects.
 
-psuedo_player = Hitbox(w=46, h=200, image=rocket, ratio=0.5)
-
-player_atk = 25
+    # Player object.
+player = Character(
+    init_x=screen_rect.centerx,
+    init_y=screen_rect.centery + 100,
+    image=ufo,
+    w=58,
+    h=34,
+    col=12
+    )
 
 player_group = pygame.sprite.Group()
-player_group.add(psuedo_player)
+player_group.add(player)
 
-# Use specialized class for enemy.
+    # Animated objects.
+explode_animation = Animated_object(
+    init_x=screen_rect.centerx,
+    init_y=screen_rect.centery-150,
+    image=explode,
+    w=50,
+    h=50,
+    col=6,
+    row=5
+    )
 
-enemy = Hitbox(y=60, w=58, image = ufo, h=34, color=(221, 0, 48), enemy=True, ratio=2 )
+animated_object_group = pygame.sprite.Group()
+animated_object_group.add(explode_animation)
 
-enemy_group = pygame.sprite.Group()
-enemy_group.add(enemy)
-
-bullet_group = pygame.sprite.Group()
-enemy_bullet_group = pygame.sprite.Group()
-
-Explode_group = pygame.sprite.Group()
-
-pill = csb.Consumables(W_WIDTH)
-
-pill_group = pygame.sprite.Group()
-pill_group.add(pill)
-
-# Die_Explosion_Group
-
-die_explosion_group = pygame.sprite.Group()
-last_spawn = 0
-
-# Game loop area.
-
-CLOCK = pygame.time.Clock()
-RUN_FLAG = True
-DIE_FLAG = False  # Check if player is alive or not
-
-#---------------------------------------------------------------------
-
-##pygame.mixer.music.play(-1, 0.0)
-
-#---------------------------------------------------------------------
-'''Fade in and fade out.'''
-
-msjh = 'fonts/msjh.ttf'
-cap_font = pygame.font.Font(msjh, 120)
-sub_font = pygame.font.Font(msjh, 24)
-cap = "Pyden 2017"
-sub = "Studio EVER proudly present"
-
-screen_rect = screen.get_rect()
-
-cap_x, cap_y = screen_rect.center
-sub_x, sub_y = cap_x, cap_y + 100
+# Init game loop.
 
 clock = pygame.time.Clock()
+Run_flag = True
 
-def show_cap(text, x, y, trans, font=cap_font):
-    if not isinstance(text, str):
-        try:
-            text = str(text)
-        except:
-            raise
-    text = font.render(text, True, (trans, trans, trans))
-    text_x, text_y = text.get_size()
-##    print('text_xy', text_x, text_y)
-    screen.blit(text, (x - text_x / 2, y - text_y / 2))
-    print(trans)
+# Start game loop.
 
-play_caption = True
-
-stay_interval = 1.5
-
-init_trans = 0
-fade_in_speed = 9
-fade_out_speed = 15
-
-# DO NOT TOUCH, this is the sign for animation controlling.
-fade_in_phase = True
-fade_out_phase = False
-
-
-if play_caption:
-    trans = init_trans
-    while fade_in_phase:
-        clock.tick(FPS)
-        show_cap( # Use functools.partial to shorten.
-            cap,
-            cap_x,
-            cap_y,
-            trans=trans)
-        show_cap(
-            sub,
-            sub_x,
-            sub_y,
-            trans=trans,
-            font=sub_font
-            )
-        trans += fade_in_speed
-        if trans >= 255:
-            trans = 255
-            fade_in_phase = False
-            fade_out_phase = True
-        pygame.display.flip()
-            
-    time.sleep(stay_interval) # Pause gameplay.
-
-    while fade_out_phase:
-        clock.tick(FPS)
-        show_cap(
-            cap,
-            cap_x,
-            cap_y,
-            trans=trans)
-        show_cap(
-            sub,
-            sub_x,
-            sub_y,
-            trans=trans,
-            font=sub_font
-            )
-        trans -= fade_out_speed
-        if trans <= 0:
-            trans = 0
-            fade_out_phase = False
-        pygame.display.flip()
+    # Main phase.
+while Run_flag:
+    clock.tick(FPS)
+    now = pygame.time.get_ticks()
     screen.fill(BLACK)
-    pygame.display.flip()
-    time.sleep(0.7)
-    
-    print("CAP SHOWN")
+    screen.blit(test_grid_partial, (0, 0))
 
-#---------------------------------------------------------------------
-
-hits = 0
-e_hits = 0
-score = 0
-
-enemy_hp = 1000
-enemy_max_hp = 1000
-
-player_dead = False
-enemy_dead = False
-
-while RUN_FLAG:
-    CLOCK.tick(FPS)
-    
-    # Init screen color.
-    # ---Put scrolling background here---
-    screen.fill(BLACK)
-    
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            RUN_FLAG = False
+            Run_flag = False
         elif event.type == pygame.KEYDOWN:
-##            print('KEYDOWN event detected:', event.key)
             if event.key == pygame.K_ESCAPE:
-                show_text("Exit by user",
-                          screct.centerx - 6*11,
-                          screct.centery + 55)
-                RUN_FLAG = False
-                print("Exit by esc key.")
+                Run_flag = False
+                print("<Exit by 'ESC' key>")
 
-    # Player activities logics.
-    # Avaliable to control if player is alive
-    if not DIE_FLAG:
-        keyboard = pygame.key.get_pressed()
-        if keyboard[pygame.K_w]:
-            psuedo_player.move('W')
-        if keyboard[pygame.K_s]:
-            psuedo_player.move('S')
-        if keyboard[pygame.K_a]:
-            psuedo_player.move('A')
-        if keyboard[pygame.K_d]:
-            psuedo_player.move('D')
-        if keyboard[pygame.K_j]:
-            psuedo_player.create_bullet(bullet_group)
-        
-    # Background logics.
-    SNOWFLAKE_GROUP.draw(screen)
-    SNOWFLAKE_GROUP.update()
+    keypress = pygame.key.get_pressed()
 
-    # Draw pills
-    if len(pill_group) <= 15:
-        if dice(5):
-            # Spawn pills at 5% chance of each frame.
-            pill = csb.Consumables(W_WIDTH)
-            pill_group.add(pill)
-    for p in pill_group:
-        if p.lifetime < pygame.time.get_ticks():
-            pill_group.remove(p)
-        if pygame.sprite.spritecollideany(p, player_group):
-            score += p.score
-            pill_group.remove(p)
-    if not DIE_FLAG:
-        pill_group.update(screct)
-        pill_group.draw(screen)
+    player.move(keypress)
 
-    # Draw player on screen.
+    # Game process.
+
     player_group.draw(screen)
-    
-    # Draw Enemies on screen
+    player_group.update(now)
 
-    for enemy in enemy_group:
-        if dice(10):
-            # Has 10% of chance spawn a bullet per tick.
-            enemy.create_bullet(enemy_bullet_group)
-    if not DIE_FLAG:
-        enemy_group.update()
-    enemy_group.draw(screen)
-    
-    # Player's dead. EXPLOSION!!
-    if DIE_FLAG:
-        try:
-            pygame.mixer.music.stop()
-            pygame.mixer.music.load(dead_bgm)
-            pygame.mixer.music.play(0)
-        except:
-            raise
-        if player_dead:
-            target_rect = psuedo_player.rect
-            end_messege = "You're DEAD"
-        if enemy_dead:
-            target_rect = enemy.rect
-            end_messege = "VICTORY!"
-        
-        exp_spawn_interval = pygame.time.get_ticks() - last_spawn
-        if len(die_explosion_group) <= 5 and exp_spawn_interval > 200: # ms.
-            random_x = target_rect.centerx + random.randint(-25, 25)
-            random_y = target_rect.centery + random.randint(-25, 25)
-            die_exp = d_exp.Die_Explosion(random_x, random_y)
-            die_explosion_group.add(die_exp)
-            last_spawn = pygame.time.get_ticks()
-        
-        for die_exp in die_explosion_group:
-            if die_exp.ended:
-                die_explosion_group.remove(die_exp)
+    animated_object_group.draw(screen)
+    animated_object_group.update(now)
 
-##        die_explosion_group.add(die_explosion1)
-        die_explosion_group.update(pygame.time.get_ticks())
-        die_explosion_group.draw(screen)
-        show_text(end_messege,
-                  screct.centerx - 6*11,
-                  screct.centery - 12)
-        current_die_time = pygame.time.get_ticks()
-        if current_die_time - pre_die_time >= 5000:
-            RUN_FLAG = False
-    
-    # Projectile logics.
-    # Player:
-    if not DIE_FLAG:
-        bullet_group.draw(screen)
-        bullet_group.update()
-    if not DIE_FLAG:
-        pre_die_time = pygame.time.get_ticks()
-    for bullet in bullet_group:
-        if not screct.colliderect(bullet.rect):
-            # Remove bullets that out of screen.
-            bullet_group.remove(bullet)
-        for spr in pygame.sprite.spritecollide(bullet, enemy_group, False):
-            # Insert on-hit-animation here. -> Done.
-            
-            colcenterx = (spr.rect.centerx + bullet.rect.centerx)/2
-            colcentery = (spr.rect.centery + bullet.rect.centery)/2
-            print(colcenterx, colcentery)
-            
-            Explode_group.add(
-                exp.Explode(
-                    *bullet.rect.center, explode))
-            bullet_group.remove(bullet)
-            hits += 1
-            enemy_hp -= player_atk
-                
-            if enemy_hp <= 0:
-##                show_text("Victory!",
-##                          screct.centerx - 6*11,
-##                          screct.centery + 16)
-                print("Exit by victory.")
-                DIE_FLAG = True
-                enemy_dead = True
+    # End of game process.
 
-    # Enemy:
-    if not DIE_FLAG:
-        enemy_bullet_group.draw(screen)
-        enemy_bullet_group.update()
-    for ebullet in enemy_bullet_group:
-        if not screct.colliderect(ebullet.rect):
-            # Remove bullets that out of screen.
-            enemy_bullet_group.remove(ebullet)
-        for espr in  pygame.sprite.spritecollide(ebullet, player_group, False):
-            # Insert on-hit-animation here. -> Done.
-            
-            colcenterx = (espr.rect.centerx + ebullet.rect.centerx)/2
-            colcentery = (espr.rect.centery + ebullet.rect.centery)/2
-            cldx, cldy = ebullet.rect.midtop
-            print(colcenterx, colcentery)
-            
-            Explode_group.add(
-                exp.Explode(
-                    *ebullet.rect.center, explode))
-            enemy_bullet_group.remove(ebullet)
-            e_hits += 1
+    # Debug frame.
 
-            if e_hits >= 5:
-                if not DIE_FLAG:
-                    pre_die_time = pygame.time.get_ticks()
-                DIE_FLAG = True
-                player_dead = True
-                
-    if not DIE_FLAG:
-        Explode_group.draw(screen)
-        Explode_group.update()
-    for e in Explode_group:
-        explode_elapsed = pygame.time.get_ticks() - e.spawntime
-        if explode_elapsed > e.lifetime:
-            Explode_group.remove(e)
-
-    # ---Insert player life instructor here.---
-
-    # Print elapsed time (ms) on screen
-    elapsed_time = '{:.3f} seconds'.format(
-        pygame.time.get_ticks() / 1000
+        # Show character rect infos.
+    show_text(
+        player.rect,
+        player.rect.right,
+        player.rect.bottom,
+        color=cfg.color.black
         )
-    show_text(elapsed_time, 5, 0)
-    show_text(f'hits: {hits}', 5, screct.bottom - 30)
-    show_text(f'score: {score}', 5, 30 + 5)
-    show_text(f'Enemy_hits: {e_hits}', screct.right - 350, screct.bottom - 30)
-
-    # Enemy life intruction.
-
-    ratio = int(600*(enemy_hp/enemy_max_hp))
-    if ratio < 0: ratio = 0
-    ehp_s = pygame.Surface((ratio, 20))
-    ehp_rect = ehp_s.get_rect(
-        center=(screct.centerx, 15))
-    ehp_s.fill((0, 240, 0))
-    screen.blit(ehp_s, ehp_rect)
-    print(enemy_hp)
-    pygame.display.update(ehp_rect)
     
-    # Refresh screen.
+        # Show key infos.
+    show_text(
+        event,
+        0,
+        0,
+        color=cfg.color.black
+        )
+
+    # End of debug frame.
+
     pygame.display.flip()
 
-#End Game loop--------------------------------------------------------
-
-pygame.display.flip()
-
-#time.sleep(0.5)
-pygame.event.clear() # Clear event queue avoid getting unused events.
-
-while True:
-    event = pygame.event.wait()
-    if event.type == pygame.KEYDOWN:
-        # Quit by press any key.
-        break
-
+# End of game loop.
 pygame.quit()
-sys.exit()
+sys.exit(0)
