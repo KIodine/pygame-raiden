@@ -1,6 +1,7 @@
 import sys
 import os
 import random
+import math
 
 import pygame
 import config as cfg
@@ -26,7 +27,7 @@ BLACK = cfg.color.black
 
 FPS = 60
 
-DEV_MODE = True
+DEV_MODE = True # Enable/disable DEV_MODE by 'F2' key.
 
 # Init window.
 
@@ -55,6 +56,10 @@ explode = pygame.image.load(explode_dir).convert_alpha()
 ufo_dir = 'images/ufo.gif'
 # The ufo.
 ufo = pygame.image.load(ufo_dir).convert_alpha()
+
+rocket_dir = 'images/rocket02.png'
+# The rocket projectile.
+rocket = pygame.image.load(rocket_dir).convert_alpha()
 
     # Fonts.
 msjh_dir = 'fonts/msjh.ttf'
@@ -101,7 +106,7 @@ class Animation_core():
             self.image = pygame.Surface((w, h), pygame.SRCALPHA)
             self.rect = self.image.get_rect()
             self.image.fill((0, 0, 0, 0))
-            pygame.draw.rect(screen, (0, 255, 0, 255), (0, 0, w, h), 1)
+            pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
             self.index = None
         else:
             self.index = 0
@@ -159,6 +164,14 @@ If given a image, set 'w' and 'h' to the unit size of image,
         self.fire_rate = 70
         self.last_fire = pygame.time.get_ticks()
 
+        # Set charge attr.
+        self.current_charge = 0
+        self.max_charge = 1000
+        self.charge_value = 3
+        self.charge_speed = 0.01 # second
+        self.last_charge = pygame.time.get_ticks()
+
+        # Set fps.
         self.fps = 24
         self.last_draw = pygame.time.get_ticks()
 
@@ -176,6 +189,12 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
         if keypress[pygame.K_KP4]:
             print("<Pressed 'KP4'>")
+
+        if keypress[pygame.K_j]:
+            ratio = self.current_charge/self.max_charge
+            if ratio == 1:
+                self.current_charge = 0
+            pass
 
     def _create_bullet(self):
         # Not finished yet.
@@ -197,6 +216,14 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 self.rect,
                 1
                 )
+        
+        elapsed_charge = current_time - self.last_charge
+        if elapsed_charge > self.charge_speed * 1000\
+           and self.current_charge < self.max_charge:
+            self.last_charge = current_time
+            self.current_charge += self.charge_value
+            if self.current_charge > self.max_charge:
+                self.current_charge = self.max_charge
         
     # End of Character.
 
@@ -261,12 +288,13 @@ class Animated_object(pygame.sprite.Sprite):
     # Define Projectile.
 
 class Projectile(pygame.sprite.Sprite):
-
+    '''Simple linear projectile.'''
     def __init__(self,
                  *,
                  init_x=0,
                  init_y=0,
                  direct=-1,
+                 speed=5,
                  image=None,
                  w=50,
                  h=50,
@@ -313,7 +341,71 @@ class Projectile(pygame.sprite.Sprite):
                     self.rect,
                     1
                     )
-        
+
+
+    # End of Projectile.
+
+    # Define Skill_panel.
+
+class Skill_panel(pygame.sprite.Sprite):
+    '''Skill charge instructor'''
+    def __init__(self,
+                 *,
+                 x_pos=0,
+                 y_pos=0,
+                 c_expand=25,
+                 image=None,
+                 w=100,
+                 h=100,
+                 col=1,
+                 row=1
+                 ):
+        super(Skill_panel, self).__init__()
+
+        Animation_core.__init__(
+            self,
+            image=image,
+            w=w,
+            h=h,
+            col=col,
+            row=row
+            )
+
+        self.rect.topleft = x_pos, y_pos
+
+        self.c_expand = c_expand
+
+    def update(
+        self,
+        current_val,
+        max_val
+        ):
+        ratio = current_val/max_val
+        outer_rect = self.rect.inflate(self.c_expand, self.c_expand)
+        arc_ratio = ratio * (2*math.pi)
+##        print(f"<Panel, arc_ratio={arc_ratio}>")
+        pygame.draw.arc(
+            screen,
+            (47, 89, 158, 255),
+            outer_rect,
+            (math.pi/2),
+            (math.pi/2 + arc_ratio),
+            7
+            )
+        if ratio == 1:
+            c_center = self.rect.center
+            pygame.draw.circle(
+                screen,
+                (0, 255, 255, 255),
+                c_center,
+                int(outer_rect.width/2 + 6),
+                3
+                )
+##        print(self.rect.topleft)
+
+
+    # End of Skill panel.
+
 # End of interactive objects.
 
 # Init objects.
@@ -344,6 +436,15 @@ explode_animation = Animated_object(
 
 animated_object_group = pygame.sprite.Group()
 animated_object_group.add(explode_animation)
+
+    # Skill panel.
+charge = Skill_panel(
+    x_pos=screen_rect.w-160,
+    y_pos=screen_rect.h-140
+    )
+
+UI_group = pygame.sprite.Group()
+UI_group.add(charge)
 
 # Init game loop.
 
@@ -384,6 +485,14 @@ while Run_flag:
 
     animated_object_group.draw(screen)
     animated_object_group.update(now)
+
+    UI_group.draw(screen)
+    UI_group.update(
+        player.current_charge,
+        player.max_charge
+        )
+
+##    print(player.current_charge, player.max_charge)
 
     # End of game process.
 
