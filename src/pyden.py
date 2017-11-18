@@ -5,6 +5,7 @@ import math
 
 import pygame
 import config as cfg
+import animation as ani
 
 # Pyden 0.15.1 alpha
 
@@ -90,49 +91,82 @@ Display text on x, y.\
     
     return None
 
-# Interactive objects.
+def transparent_image(
+    w=50,
+    h=50
+    ) -> pygame.Surface:
+    surface = pygame.Surface(
+        (w, h),
+        pygame.SRCALPHA
+        )
+    surface.fill(
+        (0, 0, 0, 0)
+        )
+    return surface
 
-    # Define Animation_core.
-
-class Animation_core():
-    '''Resolve single picture to animation list.'''
+class resource():
+    '''Resource container.'''
+    __slots__ = [   # Fixed data struct.
+        'name',
+        'current_val',
+        'max_val',
+        'charge_val',
+        'charge_speed',
+        'last_charge'
+        ]
     def __init__(self,
                  *,
-                 image=None,
-                 w=70,
-                 h=70,
-                 col=1,
-                 row=1
+                 name='NONE',
+                 init_val=100,
+                 max_val=100,
+                 charge_val=1,
+                 charge_speed=0.1,
+                 init_time=0
                  ):
-        
-        if image is None:
-            self.image = pygame.Surface((w, h), pygame.SRCALPHA)
-            self.rect = self.image.get_rect()
-            self.image.fill((0, 0, 0, 0))
-            pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
-            self.index = None
-        else:
-            self.index = 0
-            self.animation_list = []
-            self.master_image = image
-            for i in range(col):
-                for j in range(row):
-                    self.animation_list.append(
-                        [i*w, j*h, w, h]
-                        )
-            self.rect = pygame.rect.Rect(0, 0, w, h)
-            # Set a smaller collide rect for better player experience?
-            ani_rect = self.animation_list[self.index]
-            self.ani_len = len(self.animation_list)
-            self.image = self.master_image.subsurface(ani_rect)
-        
+        self.name = name
+        self.current_val = init_val
+        self.max_val = max_val
+        self.charge_val = charge_val
+        self.charge_speed=charge_speed
+        self.last_charge = init_time
 
-    # End of Animation_core.
+    def __repr__(self):
+        s = "<{name}: {current_val}/{max_val} ({ratio}%)>"
+        return s.format(
+            name=self.name,
+            max_val=self.max_val,
+            current_val=self.current_val,
+            ratio=self.ratio*100
+            )
+
+    def recover(self, current_time):
+        elapsed_time = current_time - self.last_charge
+        if elapsed_time > self.charge_speed * 1000\
+           and self.current_val < self.max_val:
+            self.last_charge = current_time
+            self.current_val += self.charge_val
+            if self.current_val > self.max_val:
+                self.current_val = self.max_val
+        # Limit the minimum val to zero.
+        if self.current_val < 0: self.current_val = 0
+
+    def zero(self):
+        '''Reduce resource to zero.'''
+        self.current_val = 0
+
+    def _to_max(self):
+        self.current_val = self.max_val
+
+    @property
+    def ratio(self):
+        return self.current_val/self.max_val
+
+# Interactive objects.
 
     # Define Charactor.
 
 class Character(pygame.sprite.Sprite):
-
+    
     def __init__(self,
                  *,
                  init_x=0,
@@ -150,7 +184,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         # Must be explictly.
         super(Character, self).__init__()
 
-        Animation_core.__init__(
+        ani.Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -170,17 +204,38 @@ If given a image, set 'w' and 'h' to the unit size of image,
         self.last_fire = now
 
         # Set charge attr.
-        self.current_charge = 0
-        self.max_charge = 1000
-        self.charge_value = 3
-        self.charge_speed = 0.01 # second
-        self.last_charge = now
+        self.Charge = resource(
+            name='Charge',
+            init_val=0,
+            max_val=1000,
+            charge_val=3,
+            charge_speed=0.01,
+            init_time=now
+            )
 
-        self.current_ult = 0
-        self.max_ult = 2000
-        self.ult_value = 3
-        self.ult_speed = 0.01
-        self.last_ult_charge = now
+        self.Ult = resource(
+            name='Ultimate',
+            init_val=0,
+            max_val=2000,
+            charge_val=3,
+            charge_speed=0.01,
+            init_time=now
+            )
+
+        self.Hp = resource(
+            name='Health',
+            init_val=100,
+            max_val=100,
+            charge_val=10,
+            charge_speed=0.5,
+            init_time=now
+            )
+
+        self._resource_list = [
+            self.Charge,
+            self.Ult,
+            self.Hp
+            ]
 
         # Set fps.
         self.fps = 24
@@ -188,7 +243,9 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
     def actions(self, keypress):
         # Move: W A S D.
-        # Note: May integrated with other actions and rename as 'actions'.
+        # Normal attack: 'j'
+        # Charged attack: 'k'
+        # Ult: 'l'(L)
         if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
             self.rect.move_ip(0, -self.move_y_rate)
         if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
@@ -198,7 +255,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
             self.rect.move_ip(self.move_x_rate, 0)
 
-        if keypress[pygame.K_KP8]:
+        if keypress[pygame.K_KP8]: # Test.
             print("<Pressed 'KP8'>")
 
 
@@ -208,17 +265,14 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
         if keypress[pygame.K_k]:
             # Cast charged skill.
-            ratio = self.current_charge/self.max_charge
-            if ratio == 1:
-                self.current_charge = 0
-            pass
+            ratio = self.Charge.ratio
+            if self.Charge.ratio == 1:
+                self.Charge.zero()
 
         if keypress[pygame.K_l]:
             # Cast ult.
-            ratio = self.current_ult/self.max_ult
-            if ratio == 1:
-                self.current_ult = 0
-            pass
+            if self.Ult.ratio == 1:
+                self.Ult.zero()
 
     def _create_bullet(self, projectile_group):
         now = pygame.time.get_ticks()
@@ -239,7 +293,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         w, h = image.get_rect().size
         bullet = Projectile(
             init_x=x+b_shift(),
-            init_y=y+5,
+            init_y=y-8,
             image=image,
             w=w,
             h=h
@@ -264,24 +318,106 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 1
                 )
 
-        # Charge resource over time.
-        elapsed_charge = current_time - self.last_charge
-        if elapsed_charge > self.charge_speed * 1000\
-           and self.current_charge < self.max_charge:
-            self.last_charge = current_time
-            self.current_charge += self.charge_value
-            if self.current_charge > self.max_charge:
-                self.current_charge = self.max_charge
+        for res in self._resource_list:
+            res.recover(current_time)
 
-        elapsed_ult_charge = current_time - self.last_ult_charge
-        if elapsed_ult_charge > self.ult_speed * 1000\
-           and self.current_ult < self.max_ult:
-            self.last_ult_charge = current_time
-            self.current_ult += self.ult_value
-            if self.current_ult > self.max_ult:
-                self.current_ult = self.max_ult
-        
+
     # End of Character.
+
+    # Define Mob.
+
+class Mob(pygame.sprite.Sprite):
+    '''This class is yet to be done.'''
+    def __init__(self,
+                 *,
+                 init_x=0,
+                 init_y=0,
+                 image=None,
+                 w=70,
+                 h=70,
+                 col=1,
+                 row=1
+                 ):
+        super(Mob, self).__init__()
+
+        ani.Animation_core.__init__(
+            self,
+            image=image,
+            w=w,
+            h=h,
+            col=col,
+            row=row
+            )
+
+        self.rect.center = init_x, init_y
+
+        self.move_x_rate = 6
+        self.move_y_rate = 6
+
+        now = pygame.time.get_ticks() # Get current time.
+
+        self.fire_rate = 12
+        self.last_fire = now
+
+        self.Hp = resource(
+            name='Hp',
+            charge_val=0 # Will not recover over time.
+            )
+
+        self._resource_list = [
+            self.Hp
+            ]
+
+        # Set fps.
+        self.fps = 24
+        self.last_draw = now
+
+    def _draw_hpbar(self):
+        hp_ratio = int(100 * self.Hp.ratio)
+        bar = pygame.rect.Rect(
+            0, 0, hp_ratio, 6
+            )
+        x, y = self.rect.midtop
+        bar.center = x, (y - 10)
+        pygame.draw.rect(
+            screen,
+            cfg.color.green,
+            bar,
+            0 # fill
+            )
+
+    def update(self, current_time):
+        if self.index is not None:
+            elapsed_time = current_time - self.last_draw
+            if elapsed_time > self.fps**-1 * 1000:
+                self.index += 1
+                ani_rect = self.animation_list[self.index%self.ani_len]
+                self.image = self.master_image.subsurface(ani_rect)
+                self.last_draw = current_time
+                
+        for res in self._resource_list:
+            res.recover(current_time)
+
+        self._draw_hpbar()
+        
+        # Draw hitbox frame.
+        if DEV_MODE:
+            frame = pygame.draw.rect(
+                screen,
+                (255, 0, 0, 255), # red for enemy.
+                self.rect,
+                1
+                )
+            x, y = self.rect.bottomright
+            show_text(
+                self.Hp,
+                x,
+                y,
+                color=cfg.color.black
+                )
+
+
+    # End of Mob.
 
     # Define Animated_object
 
@@ -300,7 +436,7 @@ class Animated_object(pygame.sprite.Sprite):
 
         super(Animated_object, self).__init__()
 
-        Animation_core.__init__(
+        ani.Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -337,7 +473,7 @@ class Animated_object(pygame.sprite.Sprite):
                 self.rect,
                 1
                 )
-
+            
 
     # End of Animated_object.
 
@@ -346,7 +482,7 @@ class Animated_object(pygame.sprite.Sprite):
 class Projectile(pygame.sprite.Sprite):
     '''\
 Simple linear projectile.
-Minus direct for upward, positive direct for downwward.\
+Minus direct for upward, positive direct for downward.\
 '''
     def __init__(self,
                  *,
@@ -354,6 +490,7 @@ Minus direct for upward, positive direct for downwward.\
                  init_y=0,
                  direct=-1,
                  speed=10,
+                 dmg=10,
                  image=None,
                  w=50,
                  h=50,
@@ -363,7 +500,7 @@ Minus direct for upward, positive direct for downwward.\
         
         super(Projectile, self).__init__()
 
-        Animation_core.__init__(
+        ani.Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -373,6 +510,8 @@ Minus direct for upward, positive direct for downwward.\
             )
 
         now = pygame.time.get_ticks()
+
+        self.dmg = dmg
         
         self.rect.center = init_x, init_y
         self.direct = direct
@@ -413,6 +552,13 @@ Minus direct for upward, positive direct for downwward.\
 
     # End of Projectile.
 
+    # Define bullet type.
+
+def bullet_creator(btype: str):
+    pass
+
+    # End of bullet type.
+
     # Define Skill_panel.
 
 class Skill_panel(pygame.sprite.Sprite):
@@ -422,8 +568,7 @@ class Skill_panel(pygame.sprite.Sprite):
                  x_pos=0,
                  y_pos=0,
                  border_expand=25,
-                 cur_resource='',
-                 max_resource='',
+                 resource_name='',
                  image=None,
                  w=100,
                  h=100,
@@ -431,15 +576,11 @@ class Skill_panel(pygame.sprite.Sprite):
                  row=1
                  ):
 
-        if not (cur_resource or max_resource):
-            raise ValueError("Cannot monitor empty resource name")
-
-        self.cur_resource = cur_resource
-        self.max_resource = max_resource
+        self.resource_name = resource_name
         
         super(Skill_panel, self).__init__()
 
-        Animation_core.__init__(
+        ani.Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -454,10 +595,13 @@ class Skill_panel(pygame.sprite.Sprite):
 
     def update(
         self,
-        player: 'Player'
+        player: Character
         ):
-        current_val = getattr(player, self.cur_resource)
-        max_val = getattr(player, self.max_resource)
+        
+        res = getattr(player, self.resource_name) 
+        current_val = res.current_val
+        max_val = res.max_val
+        
         ratio = current_val/max_val
         outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
         
@@ -467,6 +611,7 @@ class Skill_panel(pygame.sprite.Sprite):
         arc_rect = surf_rect.inflate(-10, -10)
         
         arc_ratio = ratio * (2*math.pi)
+        # 'arc' takes 'radius' as param.
         pygame.draw.arc(
             surf,
             (47, 89, 158, 190),
@@ -485,6 +630,13 @@ class Skill_panel(pygame.sprite.Sprite):
                 3
                 )
         screen.blit(surf, (outer_rect.topleft))
+        if DEV_MODE:
+            pygame.draw.rect(
+                screen,
+                (0, 255, 0, 255),
+                outer_rect,
+                2
+                )
 
 
     # End of Skill panel.
@@ -505,6 +657,18 @@ player = Character(
 
 player_group = pygame.sprite.Group()
 player_group.add(player)
+
+enemy = Mob(
+    init_x=screen_rect.centerx-100,
+    init_y=screen_rect.centery,
+    image=ufo,
+    w=58,
+    h=34,
+    col=12
+    )
+
+enemy_group = pygame.sprite.Group()
+enemy_group.add(enemy)
 
     # projectile objects.
 projectile_group = pygame.sprite.Group()
@@ -528,8 +692,7 @@ charge = Skill_panel(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=100,
-    cur_resource='current_ult',
-    max_resource='max_ult',
+    resource_name='Ult',
     w=100,
     h=100
     )
@@ -538,16 +701,25 @@ charge2 = Skill_panel(
     x_pos=screen_rect.w-350,
     y_pos=screen_rect.h-110,
     border_expand=50,
-    cur_resource='current_charge',
-    max_resource='max_charge',
+    resource_name='Charge',
     w=75,
     h=75
+    )
+
+HP_monitor = Skill_panel(
+    x_pos=60,
+    y_pos=515,
+    border_expand=50,
+    resource_name='Hp',
+    w=80,
+    h=80
     )
 
 UI_group = pygame.sprite.Group()
 UI_group.add(
     charge,
-    charge2
+    charge2,
+    HP_monitor
     )
 
 # Init game loop.
@@ -579,8 +751,12 @@ while Run_flag:
                 print(f"<DEV_MODE={DEV_MODE}>")
             if key == pygame.K_F3:
                 print("<Charge resource to max>")
-                player.current_charge = player.max_charge
-                player.current_ult = player.max_ult
+                for p_res in player._resource_list:
+                    p_res._to_max()
+                
+                for e in enemy_group:
+                    for e_res in e._resource_list:
+                        e_res._to_max()
 
     keypress = pygame.key.get_pressed()
 
@@ -591,13 +767,23 @@ while Run_flag:
     player_group.draw(screen)
     player_group.update(now)
 
+    enemy_group.draw(screen)
+    enemy_group.update(now)
+
     projectile_group.draw(screen)
     projectile_group.update(now)
     for proj in projectile_group:
         if not screen_rect.contains(proj.rect):
             projectile_group.remove(proj)
-            if DEV_MODE:
-                print("<Projectile removed: Over border.>")
+            
+        collides = pygame.sprite.spritecollide(
+            proj,
+            enemy_group,
+            False
+            )
+        for collided in collides:
+            collided.Hp.current_val -= proj.dmg
+            projectile_group.remove(proj)
 
     animated_object_group.draw(screen)
     animated_object_group.update(now)
@@ -626,6 +812,13 @@ while Run_flag:
             event,
             0,
             0,
+            color=cfg.color.black
+            )
+        m_pos_x, m_pos_y = pygame.mouse.get_pos()
+        show_text(
+            f'<{m_pos_x}, {m_pos_y}>',
+            m_pos_x,
+            m_pos_y,
             color=cfg.color.black
             )
 
