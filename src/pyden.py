@@ -106,7 +106,7 @@ def transparent_image(
 
 class resource():
     '''Resource container.'''
-    __slots__ = [   # Fixed data struct.
+    __slots__ = [   # Fixed data structure.
         'name',
         'current_val',
         'max_val',
@@ -131,15 +131,16 @@ class resource():
         self.last_charge = init_time
 
     def __repr__(self):
-        s = "<{name}: {current_val}/{max_val} ({ratio}%)>"
+        s = "<{name}: {current_val}/{max_val} ({ratio:.1f}%)>"
         return s.format(
             name=self.name,
-            max_val=self.max_val,
-            current_val=self.current_val,
+            max_val=int(self.max_val),
+            current_val=int(self.current_val),
             ratio=self.ratio*100
             )
 
     def recover(self, current_time):
+        '''Recover resource over time.'''
         elapsed_time = current_time - self.last_charge
         if elapsed_time > self.charge_speed * 1000\
            and self.current_val < self.max_val:
@@ -155,6 +156,7 @@ class resource():
         self.current_val = 0
 
     def _to_max(self):
+        '''Charge resource to its maximum value.'''
         self.current_val = self.max_val
 
     @property
@@ -226,8 +228,8 @@ If given a image, set 'w' and 'h' to the unit size of image,
             name='Health',
             init_val=100,
             max_val=100,
-            charge_val=10,
-            charge_speed=0.5,
+            charge_val=0.8,
+            charge_speed=0.02,
             init_time=now
             )
 
@@ -302,6 +304,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         
 
     def update(self, current_time):
+        # Is there a way to seperate?
         if self.index is not None:
             elapsed_time = current_time - self.last_draw
             if elapsed_time > self.fps**-1 * 1000:
@@ -309,6 +312,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 ani_rect = self.animation_list[self.index%self.ani_len]
                 self.image = self.master_image.subsurface(ani_rect)
                 self.last_draw = current_time
+                
         # Draw hitbox frame.
         if DEV_MODE:
             frame = pygame.draw.rect(
@@ -317,6 +321,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 self.rect,
                 1
                 )
+            
 
         for res in self._resource_list:
             res.recover(current_time)
@@ -361,7 +366,7 @@ class Mob(pygame.sprite.Sprite):
 
         self.Hp = resource(
             name='Hp',
-            charge_val=0 # Will not recover over time.
+            charge_val=1 # Will not recover over time.
             )
 
         self._resource_list = [
@@ -747,6 +752,7 @@ while Run_flag:
                 Run_flag = False
                 print("<Exit by 'ESC' key>")
             if key == pygame.K_F2:
+                # Enable/disable develope mode.
                 DEV_MODE = not DEV_MODE
                 print(f"<DEV_MODE={DEV_MODE}>")
             if key == pygame.K_F3:
@@ -757,6 +763,9 @@ while Run_flag:
                 for e in enemy_group:
                     for e_res in e._resource_list:
                         e_res._to_max()
+            if key == pygame.K_F4:
+                player.Hp.current_val -= 50
+                
 
     keypress = pygame.key.get_pressed()
 
@@ -797,7 +806,7 @@ while Run_flag:
 
     # End of game process.
 
-    # Debug frame.
+    # System info frame.
     if DEV_MODE:
             # Show character rect infos.
         show_text(
@@ -820,6 +829,18 @@ while Run_flag:
             m_pos_x,
             m_pos_y,
             color=cfg.color.black
+            )
+        show_text(
+            player.Hp,
+            170,
+            490,
+            color=cfg.color.black
+            )
+        show_text(
+            clock.get_fps(),
+            0,
+            33,
+            color=cfg.color.purple
             )
 
     # End of debug frame.
