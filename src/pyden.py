@@ -27,7 +27,10 @@ BLACK = cfg.color.black
 
 FPS = 60
 
-DEV_MODE = True # Enable/disable DEV_MODE by 'F2' key.
+DEV_MODE = True
+
+# Switch DEV_MODE by 'F2' key.
+# Charge resource to full by 'F3' key.
 
 # Init window.
 
@@ -163,7 +166,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
         now = pygame.time.get_ticks() # Get current time.
 
-        self.fire_rate = 70
+        self.fire_rate = 12
         self.last_fire = now
 
         # Set charge attr.
@@ -198,21 +201,51 @@ If given a image, set 'w' and 'h' to the unit size of image,
         if keypress[pygame.K_KP8]:
             print("<Pressed 'KP8'>")
 
+
         if keypress[pygame.K_j]:
+            # Cast normal attack.
+            self._create_bullet(projectile_group)
+
+        if keypress[pygame.K_k]:
+            # Cast charged skill.
             ratio = self.current_charge/self.max_charge
             if ratio == 1:
                 self.current_charge = 0
             pass
 
-        if keypress[pygame.K_k]:
+        if keypress[pygame.K_l]:
+            # Cast ult.
             ratio = self.current_ult/self.max_ult
             if ratio == 1:
                 self.current_ult = 0
             pass
 
-    def _create_bullet(self):
-        # Not finished yet.
-        pass
+    def _create_bullet(self, projectile_group):
+        now = pygame.time.get_ticks()
+        b_shift = lambda: random.randint(-2, 2)
+        if now - self.last_fire > self.fire_rate**-1 * 1000:
+            self.last_fire = now
+            pass
+        else:
+            return
+        # Default bullet for test.
+        image = pygame.Surface(
+            (5, 15)
+            )
+        image.fill(
+            (255, 255, 0) # yellow.
+            )
+        x, y = self.rect.midtop
+        w, h = image.get_rect().size
+        bullet = Projectile(
+            init_x=x+b_shift(),
+            init_y=y+5,
+            image=image,
+            w=w,
+            h=h
+            )
+        projectile_group.add(bullet)
+        
 
     def update(self, current_time):
         if self.index is not None:
@@ -230,7 +263,8 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 self.rect,
                 1
                 )
-        
+
+        # Charge resource over time.
         elapsed_charge = current_time - self.last_charge
         if elapsed_charge > self.charge_speed * 1000\
            and self.current_charge < self.max_charge:
@@ -310,13 +344,16 @@ class Animated_object(pygame.sprite.Sprite):
     # Define Projectile.
 
 class Projectile(pygame.sprite.Sprite):
-    '''Simple linear projectile.'''
+    '''\
+Simple linear projectile.
+Minus direct for upward, positive direct for downwward.\
+'''
     def __init__(self,
                  *,
                  init_x=0,
                  init_y=0,
                  direct=-1,
-                 speed=5,
+                 speed=10,
                  image=None,
                  w=50,
                  h=50,
@@ -334,11 +371,17 @@ class Projectile(pygame.sprite.Sprite):
             col=col,
             row=row
             )
+
+        now = pygame.time.get_ticks()
         
         self.rect.center = init_x, init_y
+        self.direct = direct
+        self.y_speed = speed
+        self.move_rate = 0.1
+        self.last_move = now
 
         self.fps = 12
-        self.last_draw = pygame.time.get_ticks()
+        self.last_draw = now
         
     def update(self, current_time):
         if self.index is not None:
@@ -355,6 +398,9 @@ class Projectile(pygame.sprite.Sprite):
                 self.rect,
                 1
                 )
+        if current_time - self.last_move > self.move_rate:
+            self.rect.centery += self.y_speed * self.direct
+            self.last_move = current_time
             
         if DEV_MODE:
             pygame.draw.rect(
@@ -421,7 +467,6 @@ class Skill_panel(pygame.sprite.Sprite):
         arc_rect = surf_rect.inflate(-10, -10)
         
         arc_ratio = ratio * (2*math.pi)
-##        print(f"<Panel, arc_ratio={arc_ratio}>")
         pygame.draw.arc(
             surf,
             (47, 89, 158, 190),
@@ -460,6 +505,9 @@ player = Character(
 
 player_group = pygame.sprite.Group()
 player_group.add(player)
+
+    # projectile objects.
+projectile_group = pygame.sprite.Group()
 
     # Animated objects.
 explode_animation = Animated_object(
@@ -542,6 +590,14 @@ while Run_flag:
 
     player_group.draw(screen)
     player_group.update(now)
+
+    projectile_group.draw(screen)
+    projectile_group.update(now)
+    for proj in projectile_group:
+        if not screen_rect.contains(proj.rect):
+            projectile_group.remove(proj)
+            if DEV_MODE:
+                print("<Projectile removed: Over border.>")
 
     animated_object_group.draw(screen)
     animated_object_group.update(now)
