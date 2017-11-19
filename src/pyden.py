@@ -112,7 +112,10 @@ class resource():
         'max_val',
         'charge_val',
         'charge_speed',
-        'last_charge'
+        'last_charge',
+        'delay',
+        'delay_time',
+        'last_val'
         ]
     def __init__(self,
                  *,
@@ -121,7 +124,9 @@ class resource():
                  max_val=100,
                  charge_val=1,
                  charge_speed=0.1,
-                 init_time=0
+                 init_time=0,
+                 delay=False,
+                 delay_time=1
                  ):
         self.name = name
         self.current_val = init_val
@@ -129,6 +134,10 @@ class resource():
         self.charge_val = charge_val
         self.charge_speed=charge_speed
         self.last_charge = init_time
+        
+        self.delay = delay
+        self.delay_time = delay_time
+        self.last_val = init_val
 
     def __repr__(self):
         s = "<{name}: {current_val}/{max_val} ({ratio:.1f}%)>"
@@ -141,15 +150,34 @@ class resource():
 
     def recover(self, current_time):
         '''Recover resource over time.'''
-        elapsed_time = current_time - self.last_charge
-        if elapsed_time > self.charge_speed * 1000\
-           and self.current_val < self.max_val:
+        # The main method.
+        # Delayed recovery is yet being implemented.
+        
+        def is_available():
+            permission = False
+            
+            if self.last_val != self.current_val:
+                self.last_charge = current_time
+                # Reset last charge time(this is important).
+                self.last_charge += self.delay_time * 1000
+                self.last_val = self.current_val
+                
+            elapsed_time = current_time - self.last_charge
+            if elapsed_time > self.charge_speed * 1000\
+               and self.current_val < self.max_val:
+                permission = True
+                
+            return permission
+        
+        if is_available():
             self.last_charge = current_time
             self.current_val += self.charge_val
             if self.current_val > self.max_val:
                 self.current_val = self.max_val
+            self.last_val = self.current_val
         # Limit the minimum val to zero.
         if self.current_val < 0: self.current_val = 0
+        
 
     def zero(self):
         '''Reduce resource to zero.'''
@@ -161,7 +189,9 @@ class resource():
 
     @property
     def ratio(self):
-        return self.current_val/self.max_val
+        c_val = self.current_val
+        if c_val < 0: c_val = 0
+        return c_val/self.max_val
 
 # Interactive objects.
 
@@ -228,9 +258,11 @@ If given a image, set 'w' and 'h' to the unit size of image,
             name='Health',
             init_val=100,
             max_val=100,
-            charge_val=0.8,
+            charge_val=0.6,
             charge_speed=0.02,
-            init_time=now
+            init_time=now,
+            delay=True,
+            delay_time=2
             )
 
         self._resource_list = [
@@ -366,7 +398,9 @@ class Mob(pygame.sprite.Sprite):
 
         self.Hp = resource(
             name='Hp',
-            charge_val=1 # Will not recover over time.
+            charge_val=1, # Will not recover over time.
+            delay=True,
+            delay_time=1.5
             )
 
         self._resource_list = [
@@ -390,6 +424,33 @@ class Mob(pygame.sprite.Sprite):
             bar,
             0 # fill
             )
+
+    def attack(self, projectile_group):
+        now = pygame.time.get_ticks()
+        b_shift = lambda: random.randint(-2, 2)
+        if now - self.last_fire > self.fire_rate**-1 * 1000:
+            self.last_fire = now
+            pass
+        else:
+            return
+        # Default bullet for test.
+        image = pygame.Surface(
+            (5, 15)
+            )
+        image.fill(
+            (255, 150, 0)
+            )
+        x, y = self.rect.midbottom
+        w, h = image.get_rect().size
+        bullet = Projectile(
+            init_x=x+b_shift(),
+            init_y=y+8,
+            direct=1,
+            image=image,
+            w=w,
+            h=h
+            )
+        projectile_group.add(bullet)
 
     def update(self, current_time):
         if self.index is not None:
@@ -607,7 +668,7 @@ class Skill_panel(pygame.sprite.Sprite):
         current_val = res.current_val
         max_val = res.max_val
         
-        ratio = current_val/max_val
+        ratio = res.ratio
         outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
         
         surf = pygame.Surface(outer_rect.size, pygame.SRCALPHA)
@@ -677,6 +738,7 @@ enemy_group.add(enemy)
 
     # projectile objects.
 projectile_group = pygame.sprite.Group()
+hostile_projectile_group = pygame.sprite.Group()
 
     # Animated objects.
 explode_animation = Animated_object(
@@ -766,6 +828,8 @@ while Run_flag:
             if key == pygame.K_F4:
                 player.Hp.current_val -= 50
                 
+    if dice(5):
+        enemy.attack(hostile_projectile_group)
 
     keypress = pygame.key.get_pressed()
 
@@ -793,6 +857,21 @@ while Run_flag:
         for collided in collides:
             collided.Hp.current_val -= proj.dmg
             projectile_group.remove(proj)
+
+    hostile_projectile_group.draw(screen)
+    hostile_projectile_group.update(now)
+    for host_proj in hostile_projectile_group:
+        if not screen_rect.contains(host_proj):
+            hostile_projectile_group.remove(host_proj)
+
+        collides = pygame.sprite.spritecollide(
+            host_proj,
+            player_group,
+            False
+            )
+        for collided in collides:
+            collided.Hp.current_val -= host_proj.dmg
+            hostile_projectile_group.remove(host_proj)
 
     animated_object_group.draw(screen)
     animated_object_group.update(now)
