@@ -7,7 +7,7 @@ import pygame
 import config as cfg
 import animation as ani
 
-# Pyden 0.15.1 alpha
+# Pyden 0.20.2 alpha
 
 rdgray = lambda: random.choice(cfg.gray_scale_range)
 rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
@@ -155,7 +155,7 @@ class resource():
         
         def is_available():
             permission = False
-            
+            # Short-circuit, if 'delay' is 'False', it won't eval the rear code.
             if self.delay and self.last_val != self.current_val:
                 self.last_charge = current_time
                 # Reset last charge time(this is important).
@@ -393,7 +393,7 @@ class Mob(pygame.sprite.Sprite):
 
         now = pygame.time.get_ticks() # Get current time.
 
-        self.fire_rate = 12
+        self.fire_rate = 1
         self.last_fire = now
 
         self.Hp = resource(
@@ -634,6 +634,8 @@ class Skill_panel(pygame.sprite.Sprite):
                  x_pos=0,
                  y_pos=0,
                  border_expand=25,
+                 arc_color=(47, 89, 158, 190),
+                 rim_color=(0, 255, 255, 215),
                  resource_name='',
                  image=None,
                  w=100,
@@ -658,6 +660,8 @@ class Skill_panel(pygame.sprite.Sprite):
         self.rect.topleft = x_pos, y_pos
 
         self.border_expand = border_expand
+        self.arc_color = arc_color
+        self.rim_color = rim_color
 
     def update(
         self,
@@ -678,19 +682,21 @@ class Skill_panel(pygame.sprite.Sprite):
         
         arc_ratio = ratio * (2*math.pi)
         # 'arc' takes 'radius' as param.
+        # Variable arc indicates resource percentage.
         pygame.draw.arc(
             surf,
-            (47, 89, 158, 190),
+            self.arc_color,
             arc_rect,
             (math.pi/2),
             (math.pi/2 + arc_ratio),
             15
             )
         if ratio == 1:
+            # Outer rim indicates resource is full.
             c_center = outer_rect.center
             pygame.draw.circle(
                 surf,
-                (0, 255, 255, 190),
+                self.rim_color,
                 surf_rect.center,
                 int(outer_rect.width/2),
                 3
@@ -758,7 +764,7 @@ animated_object_group.add(explode_animation)
 charge = Skill_panel(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
-    border_expand=100,
+    border_expand=80,
     resource_name='Ult',
     w=100,
     h=100
@@ -778,6 +784,7 @@ HP_monitor = Skill_panel(
     y_pos=515,
     border_expand=50,
     resource_name='Hp',
+    arc_color=(25, 221, 0, 240),
     w=80,
     h=80
     )
@@ -787,6 +794,51 @@ UI_group.add(
     charge,
     charge2,
     HP_monitor
+    )
+
+# Define Handlers.
+
+class MobHandle():
+
+    def __init__(self,
+                 *,
+                 current_time,
+                 enemy_group=None,
+                 spawn_interval=2,
+                 max_amount=5
+                 ):
+        self.last_spawn = current_time
+        self.enemy_group = enemy_group
+        self.spawn_interval = spawn_interval * 1000
+        self.max_amount = max_amount
+
+    def __call__(self, current_time):
+        if self.enemy_group is None:
+            return
+        for hostile in self.enemy_group:
+            if hostile.Hp.current_val == 0:
+                enemy_group.remove(hostile)
+                self.last_spawn = current_time
+        if len(enemy_group) < self.max_amount:
+            elapsed_time = current_time - self.last_spawn
+            if elapsed_time > self.spawn_interval:
+                self._spawn_random_pos()
+                self.last_spawn = current_time # Reset.
+
+    def _spawn_random_pos(self):
+        enemy = Mob(
+                    init_x=random.randint(100, screen_rect.w-100),
+                    init_y=random.randint(100, screen_rect.h/2),
+                    image=ufo,
+                    w=58,
+                    h=34,
+                    col=12
+                    )
+        self.enemy_group.add(enemy)
+
+MobHandler = MobHandle(
+    current_time=pygame.time.get_ticks(),
+    enemy_group=enemy_group,
     )
 
 # Init game loop.
@@ -828,8 +880,9 @@ while Run_flag:
             if key == pygame.K_F4:
                 player.Hp.current_val -= 50
                 
-    if dice(5):
-        enemy.attack(hostile_projectile_group)
+    for e in enemy_group:
+        if dice(5):
+            e.attack(hostile_projectile_group)
 
     keypress = pygame.key.get_pressed()
 
@@ -842,6 +895,8 @@ while Run_flag:
 
     enemy_group.draw(screen)
     enemy_group.update(now)
+    
+    MobHandler(now)
 
     projectile_group.draw(screen)
     projectile_group.update(now)
@@ -857,7 +912,7 @@ while Run_flag:
         for collided in collides:
             collided.Hp.current_val -= proj.dmg
             projectile_group.remove(proj)
-
+    # The above and below chunk can be combined into a for-loop.
     hostile_projectile_group.draw(screen)
     hostile_projectile_group.update(now)
     for host_proj in hostile_projectile_group:
