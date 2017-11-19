@@ -156,7 +156,7 @@ class resource():
         def is_available():
             permission = False
             
-            if self.last_val != self.current_val:
+            if self.delay and self.last_val != self.current_val:
                 self.last_charge = current_time
                 # Reset last charge time(this is important).
                 self.last_charge += self.delay_time * 1000
