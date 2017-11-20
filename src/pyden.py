@@ -2,12 +2,24 @@ import sys
 import os
 import random
 import math
+from collections import namedtuple as _namedtuple
 
 import pygame
 import config as cfg
 import animation as ani
 
 # Pyden 0.20.2 alpha
+
+img_struct = _namedtuple(
+        'Animation',
+        [
+            'image',
+            'w',
+            'h',
+            'col',
+            'row'
+         ]
+        )
 
 rdgray = lambda: random.choice(cfg.gray_scale_range)
 rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
@@ -91,6 +103,39 @@ Display text on x, y.\
     
     return None
 
+def animation_loader( # This function is progessing.
+    image_dir=None,
+    w=70,
+    h=70,
+    col=1,
+    row=1
+    ) -> img_struct:
+    '''\
+Resolve single image to animation frames.\
+'''
+    # 'isinstance' can test both native and custom classes.
+    image = None
+    if image_dir is not None:
+        image = pygame.image.load(image_dir).convert_alpha()
+    struct = img_struct(
+        image=image,
+        w=w,
+        h=h,
+        col=col,
+        row=row
+        )
+    return struct
+
+# test block.
+exp = animation_loader(
+    image_dir=explode_dir,
+    w=50,
+    h=50,
+    col=6,
+    row=5
+    )
+#
+
 def transparent_image(
     w=50,
     h=50
@@ -103,6 +148,38 @@ def transparent_image(
         (0, 0, 0, 0)
         )
     return surface
+
+class Animation_core():
+    '''Resolve single picture to animation list.'''
+    def __init__(self,
+                 *,
+                 image=None,
+                 w=70,
+                 h=70,
+                 col=1,
+                 row=1
+                 ):
+        
+        if image is None:
+            self.image = pygame.Surface((w, h), pygame.SRCALPHA)
+            self.rect = self.image.get_rect()
+            self.image.fill((0, 0, 0, 0))
+            pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
+            self.index = None
+        else:
+            self.index = 0
+            self.animation_list = []
+            self.master_image = image
+            for i in range(col):
+                for j in range(row):
+                    self.animation_list.append(
+                        [i*w, j*h, w, h]
+                        )
+            self.rect = pygame.rect.Rect(0, 0, w, h)
+            # Set a smaller collide rect for better player experience?
+            ani_rect = self.animation_list[self.index]
+            self.ani_len = len(self.animation_list)
+            self.image = self.master_image.subsurface(ani_rect)
 
 class resource():
     '''Resource container.'''
@@ -216,7 +293,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         # Must be explictly.
         super(Character, self).__init__()
 
-        ani.Animation_core.__init__(
+        Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -377,7 +454,7 @@ class Mob(pygame.sprite.Sprite):
                  ):
         super(Mob, self).__init__()
 
-        ani.Animation_core.__init__(
+        Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -502,7 +579,7 @@ class Animated_object(pygame.sprite.Sprite):
 
         super(Animated_object, self).__init__()
 
-        ani.Animation_core.__init__(
+        Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -566,7 +643,7 @@ Minus direct for upward, positive direct for downward.\
         
         super(Projectile, self).__init__()
 
-        ani.Animation_core.__init__(
+        Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -648,7 +725,7 @@ class Skill_panel(pygame.sprite.Sprite):
         
         super(Skill_panel, self).__init__()
 
-        ani.Animation_core.__init__(
+        Animation_core.__init__(
             self,
             image=image,
             w=w,
@@ -798,6 +875,48 @@ UI_group.add(
 
 # Define Handlers.
 
+def DEV_INFO(flag=DEV_MODE):
+    '''\
+Catches 'player' and 'event' param in global and show.\
+'''
+    if flag:
+        # Show character rect infos.
+        if 'player' in globals():
+            show_text(
+                player.rect,
+                player.rect.right,
+                player.rect.bottom,
+                color=cfg.color.black
+                )
+            show_text(
+            player.Hp,
+            170,
+            490,
+            color=cfg.color.black
+            )
+            # Show key infos.
+        if 'event' in globals():
+            show_text(
+                event,
+                0,
+                0,
+                color=cfg.color.black
+                )
+        m_pos_x, m_pos_y = pygame.mouse.get_pos()
+        show_text(
+            f'<{m_pos_x}, {m_pos_y}>',
+            m_pos_x,
+            m_pos_y,
+            color=cfg.color.black
+            )
+        show_text(
+            clock.get_fps(),
+            0,
+            33,
+            color=cfg.color.purple
+            )
+    
+
 class MobHandle():
 
     def __init__(self,
@@ -862,23 +981,30 @@ while Run_flag:
             Run_flag = False
         elif event.type == pygame.KEYDOWN:
             key = event.key
+            
             if key == pygame.K_ESCAPE:
                 Run_flag = False
                 print("<Exit by 'ESC' key>")
+                
             if key == pygame.K_F2:
                 # Enable/disable develope mode.
                 DEV_MODE = not DEV_MODE
                 print(f"<DEV_MODE={DEV_MODE}>")
+                
             if key == pygame.K_F3:
                 print("<Charge resource to max>")
                 for p_res in player._resource_list:
                     p_res._to_max()
-                
                 for e in enemy_group:
                     for e_res in e._resource_list:
                         e_res._to_max()
+                        
             if key == pygame.K_F4:
                 player.Hp.current_val -= 50
+        else:
+            pass
+    
+    DEV_INFO(DEV_MODE)
                 
     for e in enemy_group:
         if dice(5):
@@ -936,48 +1062,7 @@ while Run_flag:
         player
         )
 
-##    print(player.current_charge, player.max_charge)
-
     # End of game process.
-
-    # System info frame.
-    if DEV_MODE:
-            # Show character rect infos.
-        show_text(
-            player.rect,
-            player.rect.right,
-            player.rect.bottom,
-            color=cfg.color.black
-            )
-        
-            # Show key infos.
-        show_text(
-            event,
-            0,
-            0,
-            color=cfg.color.black
-            )
-        m_pos_x, m_pos_y = pygame.mouse.get_pos()
-        show_text(
-            f'<{m_pos_x}, {m_pos_y}>',
-            m_pos_x,
-            m_pos_y,
-            color=cfg.color.black
-            )
-        show_text(
-            player.Hp,
-            170,
-            490,
-            color=cfg.color.black
-            )
-        show_text(
-            clock.get_fps(),
-            0,
-            33,
-            color=cfg.color.purple
-            )
-
-    # End of debug frame.
 
     pygame.display.flip() # Update screen.
 
