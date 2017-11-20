@@ -884,7 +884,15 @@ Catches 'player' and 'event' param in global and show.\
             33,
             color=cfg.color.purple
             )
-    
+
+
+class PositionControll():
+    '''\
+    Providing position control by preset route.
+    '''
+    def __init__(self):
+        raise NotImplementedError("This class is yet being implemented.")    
+
 
 class MobHandle():
 
@@ -901,6 +909,7 @@ class MobHandle():
         self.max_amount = max_amount
 
     def __call__(self, current_time):
+        # Can use it as function if it's been initialized.
         if self.enemy_group is None:
             return
         for hostile in self.enemy_group:
