@@ -67,15 +67,11 @@ test_grid_partial = test_grid.subsurface(screen_rect)
 
 explode_dir = 'images/stone.png'
 # A explosion animation named 'stone', uh...
-explode = pygame.image.load(explode_dir).convert_alpha()
 
 ufo_dir = 'images/ufo.gif'
-# The ufo.
-ufo = pygame.image.load(ufo_dir).convert_alpha()
 
 rocket_dir = 'images/rocket02.png'
 # The rocket projectile.
-rocket = pygame.image.load(rocket_dir).convert_alpha()
 
     # Fonts.
 msjh_dir = 'fonts/msjh.ttf'
@@ -104,19 +100,24 @@ Display text on x, y.\
     return None
 
 def animation_loader( # This function is progessing.
-    image_dir=None,
+    image: pygame.Surface=None,
     w=70,
     h=70,
     col=1,
     row=1
     ) -> img_struct:
     '''\
-Resolve single image to animation frames.\
+Resolve or contains necessary info into 'img_struct' container.\
 '''
     # 'isinstance' can test both native and custom classes.
-    image = None
-    if image_dir is not None:
-        image = pygame.image.load(image_dir).convert_alpha()
+    if image is not None:
+        if isinstance(image, pygame.Surface):
+            pass
+        elif os.path.exists(image):
+            # if it's not 'pygame.Surface', but a available path.
+            image = pygame.image.load(image).convert_alpha()
+        else:
+            raise TypeError(f"Cannot resolve {image}")
     struct = img_struct(
         image=image,
         w=w,
@@ -127,12 +128,19 @@ Resolve single image to animation frames.\
     return struct
 
 # test block.
-exp = animation_loader(
-    image_dir=explode_dir,
+explode = animation_loader(
+    image=explode_dir,
     w=50,
     h=50,
     col=6,
     row=5
+    )
+
+ufo = animation_loader(
+    image=ufo_dir,
+    w=58,
+    h=34,
+    col=12
     )
 #
 
@@ -150,15 +158,14 @@ def transparent_image(
     return surface
 
 class Animation_core():
-    '''Resolve single picture to animation list.'''
+    '''Takes 'img_struct', resolve it into frame list.'''
     def __init__(self,
                  *,
-                 image=None,
-                 w=70,
-                 h=70,
-                 col=1,
-                 row=1
+                 image_struct=None,
                  ):
+        # Progessing: take 'img_struct' and resolve.
+        # Unpack data.
+        image, w, h, col, row = image_struct
         
         if image is None:
             self.image = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -166,7 +173,7 @@ class Animation_core():
             self.image.fill((0, 0, 0, 0))
             pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
             self.index = None
-        else:
+        elif isinstance(image, pygame.Surface):
             self.index = 0
             self.animation_list = []
             self.master_image = image
@@ -180,6 +187,10 @@ class Animation_core():
             ani_rect = self.animation_list[self.index]
             self.ani_len = len(self.animation_list)
             self.image = self.master_image.subsurface(ani_rect)
+        else:
+            raise TypeError(
+                f"Expecting 'image_struct' type, got{image}"
+                )
 
 class resource():
     '''Resource container.'''
@@ -280,11 +291,7 @@ class Character(pygame.sprite.Sprite):
                  *,
                  init_x=0,
                  init_y=0,
-                 image=None,
-                 w=70,
-                 h=70,
-                 col=1,
-                 row=1
+                 image=None
                  ):
         '''\
 If given a image, set 'w' and 'h' to the unit size of image,
@@ -295,11 +302,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
         Animation_core.__init__(
             self,
-            image=image,
-            w=w,
-            h=h,
-            col=col,
-            row=row
+            image_struct=image
             )
 
         self.rect.center = init_x, init_y
@@ -402,12 +405,15 @@ If given a image, set 'w' and 'h' to the unit size of image,
             )
         x, y = self.rect.midtop
         w, h = image.get_rect().size
-        bullet = Projectile(
-            init_x=x+b_shift(),
-            init_y=y-8,
+        img = animation_loader(
             image=image,
             w=w,
             h=h
+            )
+        bullet = Projectile(
+            init_x=x+b_shift(),
+            init_y=y-8,
+            image=img
             )
         projectile_group.add(bullet)
         
@@ -446,21 +452,13 @@ class Mob(pygame.sprite.Sprite):
                  *,
                  init_x=0,
                  init_y=0,
-                 image=None,
-                 w=70,
-                 h=70,
-                 col=1,
-                 row=1
+                 image=None
                  ):
         super(Mob, self).__init__()
 
         Animation_core.__init__(
             self,
-            image=image,
-            w=w,
-            h=h,
-            col=col,
-            row=row
+            image_struct=image
             )
 
         self.rect.center = init_x, init_y
@@ -519,13 +517,16 @@ class Mob(pygame.sprite.Sprite):
             )
         x, y = self.rect.midbottom
         w, h = image.get_rect().size
+        img = animation_loader(
+            image=image,
+            w=w,
+            h=h
+            )
         bullet = Projectile(
             init_x=x+b_shift(),
             init_y=y+8,
             direct=1,
-            image=image,
-            w=w,
-            h=h
+            image=img
             )
         projectile_group.add(bullet)
 
@@ -570,22 +571,14 @@ class Animated_object(pygame.sprite.Sprite):
                  *,
                  init_x=0,
                  init_y=0,
-                 image=None,
-                 w=0,
-                 h=0,
-                 col=1,
-                 row=1
+                 image=None
                  ):
 
         super(Animated_object, self).__init__()
 
         Animation_core.__init__(
             self,
-            image=image,
-            w=w,
-            h=h,
-            col=col,
-            row=row
+            image_struct=image
             )
 
         self.rect.center = init_x, init_y
@@ -634,22 +627,14 @@ Minus direct for upward, positive direct for downward.\
                  direct=-1,
                  speed=10,
                  dmg=10,
-                 image=None,
-                 w=50,
-                 h=50,
-                 col=1,
-                 row=1
+                 image=None
                  ):
         
         super(Projectile, self).__init__()
 
         Animation_core.__init__(
             self,
-            image=image,
-            w=w,
-            h=h,
-            col=col,
-            row=row
+            image_struct=image
             )
 
         now = pygame.time.get_ticks()
@@ -688,7 +673,7 @@ Minus direct for upward, positive direct for downward.\
             pygame.draw.rect(
                     screen,
                     (255, 0, 0, 255),
-                    self.rect,
+                    self.rect.inflate(2, 2),
                     1
                     )
 
@@ -698,6 +683,7 @@ Minus direct for upward, positive direct for downward.\
     # Define bullet type.
 
 def bullet_creator(btype: str):
+    # Working on it.
     pass
 
     # End of bullet type.
@@ -714,11 +700,7 @@ class Skill_panel(pygame.sprite.Sprite):
                  arc_color=(47, 89, 158, 190),
                  rim_color=(0, 255, 255, 215),
                  resource_name='',
-                 image=None,
-                 w=100,
-                 h=100,
-                 col=1,
-                 row=1
+                 image=None
                  ):
 
         self.resource_name = resource_name
@@ -727,11 +709,7 @@ class Skill_panel(pygame.sprite.Sprite):
 
         Animation_core.__init__(
             self,
-            image=image,
-            w=w,
-            h=h,
-            col=col,
-            row=row
+            image_struct=image
             )
 
         self.rect.topleft = x_pos, y_pos
@@ -798,10 +776,7 @@ class Skill_panel(pygame.sprite.Sprite):
 player = Character(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery + 100,
-    image=ufo,
-    w=58,
-    h=34,
-    col=12
+    image=ufo
     )
 
 player_group = pygame.sprite.Group()
@@ -810,10 +785,7 @@ player_group.add(player)
 enemy = Mob(
     init_x=screen_rect.centerx-100,
     init_y=screen_rect.centery,
-    image=ufo,
-    w=58,
-    h=34,
-    col=12
+    image=ufo
     )
 
 enemy_group = pygame.sprite.Group()
@@ -827,34 +799,35 @@ hostile_projectile_group = pygame.sprite.Group()
 explode_animation = Animated_object(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery-150,
-    image=explode,
-    w=50,
-    h=50,
-    col=6,
-    row=5
+    image=explode
     )
 
 animated_object_group = pygame.sprite.Group()
 animated_object_group.add(explode_animation)
 
     # Skill panel.
+
+blank100 = animation_loader(w=100, h=100)
+
 charge = Skill_panel(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=80,
     resource_name='Ult',
-    w=100,
-    h=100
+    image=blank100
     )
+
+blank75 = animation_loader(w=75, h=75)
 
 charge2 = Skill_panel(
     x_pos=screen_rect.w-350,
     y_pos=screen_rect.h-110,
     border_expand=50,
     resource_name='Charge',
-    w=75,
-    h=75
+    image=blank75
     )
+
+blank80 = animation_loader(w=80, h=80)
 
 HP_monitor = Skill_panel(
     x_pos=60,
@@ -862,8 +835,7 @@ HP_monitor = Skill_panel(
     border_expand=50,
     resource_name='Hp',
     arc_color=(25, 221, 0, 240),
-    w=80,
-    h=80
+    image=blank80
     )
 
 UI_group = pygame.sprite.Group()
@@ -948,10 +920,7 @@ class MobHandle():
         enemy = Mob(
                     init_x=random.randint(100, screen_rect.w-100),
                     init_y=random.randint(100, screen_rect.h/2),
-                    image=ufo,
-                    w=58,
-                    h=34,
-                    col=12
+                    image=ufo
                     )
         self.enemy_group.add(enemy)
 
@@ -964,6 +933,7 @@ MobHandler = MobHandle(
 
 clock = pygame.time.Clock()
 Run_flag = True
+PAUSE = False
 
 # Start game loop.
 
@@ -1001,6 +971,14 @@ while Run_flag:
                         
             if key == pygame.K_F4:
                 player.Hp.current_val -= 50
+
+            if key == pygame.K_p:
+                PAUSE = not PAUSE
+                while PAUSE:
+                    event = pygame.event.wait()
+                    if event.type == pygame.KEYDOWN\
+                       and event.key == pygame.K_p:
+                        PAUSE = not PAUSE
         else:
             pass
     
@@ -1016,16 +994,16 @@ while Run_flag:
 
     # Game process.
 
-    player_group.draw(screen)
     player_group.update(now)
+    player_group.draw(screen)
 
-    enemy_group.draw(screen)
     enemy_group.update(now)
+    enemy_group.draw(screen)
     
     MobHandler(now)
 
-    projectile_group.draw(screen)
     projectile_group.update(now)
+    projectile_group.draw(screen)
     for proj in projectile_group:
         if not screen_rect.contains(proj.rect):
             projectile_group.remove(proj)
@@ -1039,8 +1017,8 @@ while Run_flag:
             collided.Hp.current_val -= proj.dmg
             projectile_group.remove(proj)
     # The above and below chunk can be combined into a for-loop.
-    hostile_projectile_group.draw(screen)
     hostile_projectile_group.update(now)
+    hostile_projectile_group.draw(screen)
     for host_proj in hostile_projectile_group:
         if not screen_rect.contains(host_proj):
             hostile_projectile_group.remove(host_proj)
@@ -1054,8 +1032,8 @@ while Run_flag:
             collided.Hp.current_val -= host_proj.dmg
             hostile_projectile_group.remove(host_proj)
 
-    animated_object_group.draw(screen)
     animated_object_group.update(now)
+    animated_object_group.draw(screen)
 
     UI_group.draw(screen)
     UI_group.update(
