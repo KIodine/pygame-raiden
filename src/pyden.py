@@ -165,6 +165,7 @@ class Animation_core():
                  ):
         # Progessing: take 'img_struct' and resolve.
         # Unpack data.
+        self.image_struct = image_struct
         image, w, h, col, row = image_struct
         
         if image is None:
@@ -177,10 +178,10 @@ class Animation_core():
             self.index = 0
             self.animation_list = []
             self.master_image = image
-            for i in range(col):
-                for j in range(row):
+            for i in range(row):
+                for j in range(col):
                     self.animation_list.append(
-                        [i*w, j*h, w, h]
+                        [j*w, i*h, w, h]
                         )
             self.rect = pygame.rect.Rect(0, 0, w, h)
             # Set a smaller collide rect for better player experience?
@@ -580,7 +581,7 @@ class Animated_object(pygame.sprite.Sprite):
 
         self.rect.center = init_x, init_y
 
-        self.fps = 12
+        self.fps = 60
         self.last_draw = pygame.time.get_ticks()
 
     def update(self, current_time):
@@ -891,7 +892,13 @@ class PositionControll():
     Providing position control by preset route.
     '''
     def __init__(self):
-        raise NotImplementedError("This class is yet being implemented.")    
+        raise NotImplementedError("This class is yet being implemented.")
+
+
+class AnimationHandle():
+    '''Not implemented.'''
+    def __init__(self):
+        raise NotImplementedError("Not implemented yet.")
 
 
 class MobHandle():
@@ -912,23 +919,46 @@ class MobHandle():
         # Can use it as function if it's been initialized.
         if self.enemy_group is None:
             return
-        for hostile in self.enemy_group:
-            if hostile.Hp.current_val == 0:
-                enemy_group.remove(hostile)
-                self.last_spawn = current_time
-        if len(enemy_group) < self.max_amount:
+        self._clear_deadbody(current_time)
+        self._attack_random(5)
+        if len(self.enemy_group) < self.max_amount:
             elapsed_time = current_time - self.last_spawn
             if elapsed_time > self.spawn_interval:
                 self._spawn_random_pos()
                 self.last_spawn = current_time # Reset.
-
+    
     def _spawn_random_pos(self):
         enemy = Mob(
-                    init_x=random.randint(100, screen_rect.w-100),
-                    init_y=random.randint(100, screen_rect.h/2),
-                    image=ufo
-                    )
+            init_x=random.randint(100, screen_rect.w-100),
+            init_y=random.randint(100, screen_rect.h/2),
+            image=ufo
+            )
         self.enemy_group.add(enemy)
+
+    def _clear_deadbody(self, current_time):
+        '''Clear hostile that 'Hp' less/equal than zero.'''
+        for hostile in self.enemy_group:
+            if hostile.Hp.current_val <= 0:
+                self.enemy_group.remove(hostile)
+                self.last_spawn = current_time
+                
+                # Dead animation.
+                # Target: random shift, with spawn interval.
+                x, y = hostile.rect.center
+                animated_object_group.add(
+                    Animated_object(
+                        init_x=x,
+                        init_y=y,
+                        image=explode
+                        )
+                    )
+
+    def _attack_random(self, chance):
+        '''Attack with n percent of chance.'''
+        for hostile in self.enemy_group:
+            if dice(chance):
+                hostile.attack(hostile_projectile_group)
+                # Play shooting sound here.
 
 MobHandler = MobHandle(
     current_time=pygame.time.get_ticks(),
@@ -989,10 +1019,6 @@ while Run_flag:
             pass
     
     DEV_INFO(DEV_MODE)
-                
-    for e in enemy_group:
-        if dice(5):
-            e.attack(hostile_projectile_group)
 
     keypress = pygame.key.get_pressed()
 
@@ -1038,6 +1064,12 @@ while Run_flag:
             collided.Hp.current_val -= host_proj.dmg
             hostile_projectile_group.remove(host_proj)
 
+    for ani in animated_object_group:
+        print(ani.index)
+        if ani.index > ani.ani_len-2:
+            # A 30 frame ani_frame list have index from 0 to 29.
+            print(ani.index)
+            animated_object_group.remove(ani)
     animated_object_group.update(now)
     animated_object_group.draw(screen)
 
