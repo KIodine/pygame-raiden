@@ -6,9 +6,8 @@ from collections import namedtuple as _namedtuple
 
 import pygame
 import config as cfg
-import animation as ani
 
-# Pyden 0.20.2 alpha
+# Pyden 0.25.1
 
 img_struct = _namedtuple(
         'Animation',
@@ -21,13 +20,15 @@ img_struct = _namedtuple(
          ]
         )
 
-rdgray = lambda: random.choice(cfg.gray_scale_range)
-rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
-shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
-rdsize = lambda: random.choices(
-    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1
-    )
-rdyellow = lambda: random.choice(cfg.yellow_range)
+# Temporary disabled.
+
+##rdgray = lambda: random.choice(cfg.gray_scale_range)
+##rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
+##shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
+##rdsize = lambda: random.choices(
+##    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1
+##    )
+##rdyellow = lambda: random.choice(cfg.yellow_range)
 
 dice = lambda chn: True if chn > random.random() * 100 else False
 
@@ -99,7 +100,7 @@ Display text on x, y.\
     
     return None
 
-def animation_loader( # This function is progessing.
+def animation_loader(
     image: pygame.Surface=None,
     w=70,
     h=70,
@@ -107,14 +108,14 @@ def animation_loader( # This function is progessing.
     row=1
     ) -> img_struct:
     '''\
-Resolve or contains necessary info into 'img_struct' container.\
+Resolve or packs necessary info into 'img_struct' container.\
 '''
     # 'isinstance' can test both native and custom classes.
     if image is not None:
         if isinstance(image, pygame.Surface):
             pass
         elif os.path.exists(image):
-            # if it's not 'pygame.Surface', but a available path.
+            # if it's not 'pygame.Surface', but a available path then:
             image = pygame.image.load(image).convert_alpha()
         else:
             raise TypeError(f"Cannot resolve {image}")
@@ -127,7 +128,7 @@ Resolve or contains necessary info into 'img_struct' container.\
         )
     return struct
 
-# test block.
+# Load resource
 explode = animation_loader(
     image=explode_dir,
     w=50,
@@ -142,7 +143,6 @@ ufo = animation_loader(
     h=34,
     col=12
     )
-#
 
 def transparent_image(
     w=50,
@@ -239,8 +239,6 @@ class resource():
     def recover(self, current_time):
         '''Recover resource over time.'''
         # The main method.
-        # Delayed recovery is yet being implemented.
-        
         def is_available():
             permission = False
             # Short-circuit, if 'delay' is 'False', it won't eval the rear code.
@@ -265,7 +263,6 @@ class resource():
             self.last_val = self.current_val
         # Limit the minimum val to zero.
         if self.current_val < 0: self.current_val = 0
-        
 
     def zero(self):
         '''Reduce resource to zero.'''
