@@ -192,7 +192,7 @@ class Animation_core():
             self.image = self.master_image.subsurface(ani_rect)
         else:
             raise TypeError(
-                f"Expecting 'image_struct' type, got{image}"
+                f"Expecting 'image_struct' type, got {image}."
                 )
 
 class resource():
@@ -449,7 +449,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
     # Define Mob.
 
 class Mob(pygame.sprite.Sprite):
-    '''This class is yet to be done.'''
+    '''Create mob object that oppose to player.'''
     def __init__(self,
                  *,
                  init_x=0,
@@ -905,43 +905,76 @@ class MobHandle():
                  *,
                  current_time,
                  enemy_group=None,
-                 spawn_interval=2,
-                 max_amount=5
+                 spawn_interval=1,
+                 max_amount=10
                  ):
-        self.last_spawn = current_time
+        
+        self.next_spawn = current_time + spawn_interval * 1000
         self.enemy_group = enemy_group
         self.spawn_interval = spawn_interval * 1000
         self.max_amount = max_amount
 
     def __call__(self, current_time):
-        # Can use it as function if it's been initialized.
+        # Use a instantiated class as function.
+        
+        # Psuedo code:
+        # if there is space for spawn, wait for 'spawn_interval':
+        #   spawn_enemy()
+        #   if spawned, set 'next_spawn' as 'current_time' + 'spawn_interval'
+        # if there is no space for spawn, set 'next_spawn' as
+        #   'current_time' + 'spawn_interval'
+        
+        reset_next_spawn = lambda: current_time + self.spawn_interval
+        
         if self.enemy_group is None:
             return
         self._clear_deadbody(current_time)
         self._attack_random(5)
+        
         if len(self.enemy_group) < self.max_amount:
-            elapsed_time = current_time - self.last_spawn
-            if elapsed_time > self.spawn_interval:
+            if current_time > self.next_spawn:
                 self._spawn_random_pos()
-                self.last_spawn = current_time # Reset.
+                self.next_spawn = reset_next_spawn() # Reset.
+        else:
+            self.next_spawn = reset_next_spawn()
     
     def _spawn_random_pos(self):
+        
+        # Add check(Psuedo code):
+        #   if enemy.rect collides existing enemy:
+        #     retry
+        safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
+        safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
+        
         enemy = Mob(
-            init_x=random.randint(100, screen_rect.w-100),
-            init_y=random.randint(100, screen_rect.h/2),
+            init_x=safe_x_pos(),
+            init_y=safe_y_pos(),
             image=ufo
             )
+        while True:
+            if not pygame.sprite.spritecollide(
+                enemy,
+                self.enemy_group,
+                False
+                ):
+                break
+            else:
+                if DEV_MODE:
+                    print("<Collide detected, rearrange position.>")
+                enemy.rect.center = safe_x_pos(), safe_y_pos()
+                
         self.enemy_group.add(enemy)
 
     def _clear_deadbody(self, current_time):
         '''Clear hostile that 'Hp' less/equal than zero.'''
+        # Clear deadbody and play explosion.
         for hostile in self.enemy_group:
             if hostile.Hp.current_val <= 0:
                 self.enemy_group.remove(hostile)
                 self.last_spawn = current_time
                 
                 # Dead animation.
-                # Target: random shift, with spawn interval.
+                # Target: random shift, with spawn interval.(other handle?)
                 x, y = hostile.rect.center
                 animated_object_group.add(
                     Animated_object(
@@ -957,6 +990,7 @@ class MobHandle():
             if dice(chance):
                 hostile.attack(hostile_projectile_group)
                 # Play shooting sound here.
+
 
 MobHandler = MobHandle(
     current_time=pygame.time.get_ticks(),
@@ -1030,7 +1064,7 @@ while Run_flag:
     player_group.update(now)
     player_group.draw(screen)
 
-    enemy_group.update(now)
+    enemy_group.update(now) # Transfer to 'MobHandle'?
     enemy_group.draw(screen)
     
     MobHandler(now)
@@ -1044,12 +1078,15 @@ while Run_flag:
         collides = pygame.sprite.spritecollide(
             proj,
             enemy_group,
-            False
+            False,
+            collided=pygame.sprite.collide_rect_ratio(1.1)
             )
+        # Enemy have a slightly bigger hitbox.
         for collided in collides:
             collided.Hp.current_val -= proj.dmg
             projectile_group.remove(proj)
-    # The above and below chunk can be combined into a for-loop.
+            
+    
     hostile_projectile_group.update(now)
     hostile_projectile_group.draw(screen)
     for host_proj in hostile_projectile_group:
@@ -1059,14 +1096,16 @@ while Run_flag:
         collides = pygame.sprite.spritecollide(
             host_proj,
             player_group,
-            False
+            False,
+            collided=pygame.sprite.collide_rect_ratio(0.6)
             )
+        # Player have smaller hitbox than it looks like.
         for collided in collides:
             collided.Hp.current_val -= host_proj.dmg
             hostile_projectile_group.remove(host_proj)
 
     for ani in animated_object_group:
-        if ani.index > ani.ani_len - 2:
+        if ani.index >= ani.ani_len - 1:
             animated_object_group.remove(ani)
     animated_object_group.update(now)
     animated_object_group.draw(screen)
