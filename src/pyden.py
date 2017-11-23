@@ -701,13 +701,6 @@ Minus direct for upward, positive direct for downward.\
 
     # End of Projectile.
 
-    # Define Columnhit
-
-class Columnhit():
-    pass
-
-    # End of Columnhit
-
     # Define bullet type.
 
 def bullet_creator(btype: str):
@@ -924,6 +917,49 @@ class AnimationHandle():
         raise NotImplementedError("Not implemented yet.")
 
 
+class BulletHandle():
+    '''(Progressing)Managing bullet types.'''
+    b_shift = lambda: random.randint(-2, 2)
+    
+    def __init__(self,
+                 *,
+                 shooter=None,
+                 projectile_group=None
+                 ):
+        self.shooter = shooter
+        self.group = group
+        if isinstance(shooter, Player):
+            self.direct = -1 # Upward.
+            
+            basic_bit_image = pygame.Surface(
+                (5, 15)
+                )
+            basic_bit_image.fill(
+                (255, 150, 0)
+                )
+            w, h = basic_bit_image.get_rect().size
+            self._basic_bit_struct = animation_loader(
+                image=self._basic_bit_image,
+                w=w,
+                h=h
+                )
+        if isinstance(shooter, Mob):
+            self.direct = 1 # Downward.
+    
+    def basic_bit(self):
+        x, y = self.shooter.rect.midtop
+        bullet = Projectile(
+            init_x=x+self.b_shift(),
+            init_y=y,
+            direct=self.direct,
+            speed=20,
+            dmg=15,
+            shooter=self.shooter,
+            image=self._basic_bit_struct
+            )
+        self.project_group.add(bullet)
+
+
 class MobHandle():
 
     def __init__(self,
@@ -996,7 +1032,6 @@ class MobHandle():
         for hostile in self.enemy_group:
             if hostile.Hp.current_val <= 0:
                 self.enemy_group.remove(hostile)
-                self.last_spawn = current_time
                 
                 # Dead animation.
                 # Target: random shift, with spawn interval.(other handle?)
@@ -1021,6 +1056,7 @@ MobHandler = MobHandle(
     current_time=pygame.time.get_ticks(),
     enemy_group=enemy_group,
     )
+
 
 # Init game loop.
 
