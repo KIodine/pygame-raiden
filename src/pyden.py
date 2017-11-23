@@ -129,11 +129,13 @@ Resolve or packs necessary info into 'img_struct' container.\
     return struct
 
 # Load resource
+
+# Improving effect of explode animation, it's doesn't need that much frames.
 explode = animation_loader(
     image=explode_dir,
     w=50,
     h=50,
-    col=6,
+    col=1, # originally 6.
     row=5
     )
 
@@ -411,7 +413,9 @@ If given a image, set 'w' and 'h' to the unit size of image,
         bullet = Projectile(
             init_x=x+b_shift(),
             init_y=y-8,
-            image=img
+            image=img,
+            speed=18,
+            dmg=20
             )
         projectile_group.add(bullet)
         
@@ -524,7 +528,7 @@ class Mob(pygame.sprite.Sprite):
             init_x=x+b_shift(),
             init_y=y+8,
             direct=1,
-            image=img
+            image=img,
             )
         projectile_group.add(bullet)
 
@@ -581,7 +585,7 @@ class Animated_object(pygame.sprite.Sprite):
 
         self.rect.center = init_x, init_y
 
-        self.fps = 60
+        self.fps = 12
         self.last_draw = pygame.time.get_ticks()
 
     def update(self, current_time):
@@ -794,14 +798,8 @@ projectile_group = pygame.sprite.Group()
 hostile_projectile_group = pygame.sprite.Group()
 
     # Animated objects.
-explode_animation = Animated_object(
-    init_x=screen_rect.centerx,
-    init_y=screen_rect.centery-150,
-    image=explode
-    )
 
 animated_object_group = pygame.sprite.Group()
-animated_object_group.add(explode_animation)
 
     # Skill panel.
 
@@ -977,9 +975,12 @@ PAUSE = False
 while Run_flag:
     clock.tick(FPS)
     now = pygame.time.get_ticks()
-    screen.fill(BLACK)
-    screen.blit(test_grid_partial, (0, 0))
-
+    
+    if DEV_MODE:
+        screen.blit(test_grid_partial, (0, 0))
+    else:
+        screen.fill(BLACK)
+        
     # Global hotkey actions.
     events = pygame.event.get()
     for event in events:
@@ -1065,10 +1066,7 @@ while Run_flag:
             hostile_projectile_group.remove(host_proj)
 
     for ani in animated_object_group:
-        print(ani.index)
-        if ani.index > ani.ani_len-2:
-            # A 30 frame ani_frame list have index from 0 to 29.
-            print(ani.index)
+        if ani.index > ani.ani_len - 2:
             animated_object_group.remove(ani)
     animated_object_group.update(now)
     animated_object_group.draw(screen)
