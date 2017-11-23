@@ -261,8 +261,7 @@ class resource():
         if is_available():
             self.last_charge = current_time
             self.current_val += self.charge_val
-            if self.current_val > self.max_val:
-                self.current_val = self.max_val
+            self._over_charge_check()
             self.last_val = self.current_val
         # Limit the minimum val to zero.
         if self.current_val < 0: self.current_val = 0
@@ -271,9 +270,22 @@ class resource():
         '''Reduce resource to zero.'''
         self.current_val = 0
 
+    def charge(self, val=0):
+        '''Charge resource with 'val'.'''
+        if self.ratio < 1:
+            self.current_val += val
+            self._over_charge_check()
+
     def _to_max(self):
         '''Charge resource to its maximum value.'''
         self.current_val = self.max_val
+
+    def _over_charge_check(self):
+        '''If current_val exceeds max_val, set if as max_val.'''
+        if self.current_val > self.max_val:
+            self.current_val = self.max_val
+
+        return None
 
     @property
     def ratio(self):
@@ -330,7 +342,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
             init_val=0,
             max_val=2000,
             charge_val=3,
-            charge_speed=0.01,
+            charge_speed=0.1,
             init_time=now
             )
 
@@ -415,7 +427,8 @@ If given a image, set 'w' and 'h' to the unit size of image,
             init_y=y-8,
             image=img,
             speed=18,
-            dmg=20
+            dmg=20,
+            shooter=self
             )
         projectile_group.add(bullet)
         
@@ -629,6 +642,7 @@ Minus direct for upward, positive direct for downward.\
                  direct=-1,
                  speed=10,
                  dmg=10,
+                 shooter=None,
                  image=None
                  ):
         
@@ -642,6 +656,7 @@ Minus direct for upward, positive direct for downward.\
         now = pygame.time.get_ticks()
 
         self.dmg = dmg
+        self.shooter = shooter
         
         self.rect.center = init_x, init_y
         self.direct = direct
@@ -651,6 +666,10 @@ Minus direct for upward, positive direct for downward.\
 
         self.fps = 12
         self.last_draw = now
+
+    def _drain(self):
+        if self.shooter is not None:
+            self.shooter.Ult.charge(self.dmg * 1)
         
     def update(self, current_time):
         if self.index is not None:
@@ -682,10 +701,16 @@ Minus direct for upward, positive direct for downward.\
 
     # End of Projectile.
 
+    # Define Columnhit
+
+class Columnhit():
+    pass
+
+    # End of Columnhit
+
     # Define bullet type.
 
 def bullet_creator(btype: str):
-    # Working on it.
     pass
 
     # End of bullet type.
@@ -1017,6 +1042,7 @@ while Run_flag:
         
     # Global hotkey actions.
     events = pygame.event.get()
+
     for event in events:
         if event.type == pygame.QUIT:
             Run_flag = False
@@ -1069,6 +1095,7 @@ while Run_flag:
     
     MobHandler(now)
 
+    # Player projectiles.
     projectile_group.update(now)
     projectile_group.draw(screen)
     for proj in projectile_group:
@@ -1084,9 +1111,10 @@ while Run_flag:
         # Enemy have a slightly bigger hitbox.
         for collided in collides:
             collided.Hp.current_val -= proj.dmg
+            proj._drain()
             projectile_group.remove(proj)
             
-    
+    # Enemy projectiles.
     hostile_projectile_group.update(now)
     hostile_projectile_group.draw(screen)
     for host_proj in hostile_projectile_group:
@@ -1104,6 +1132,7 @@ while Run_flag:
             collided.Hp.current_val -= host_proj.dmg
             hostile_projectile_group.remove(host_proj)
 
+    # Animation handle.
     for ani in animated_object_group:
         if ani.index >= ani.ani_len - 1:
             animated_object_group.remove(ani)
