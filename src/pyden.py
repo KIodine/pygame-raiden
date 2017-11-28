@@ -2,33 +2,13 @@ import sys
 import os
 import random
 import math
-from collections import namedtuple as _namedtuple
 
 import pygame
+
 import config as cfg
+import animation
 
-# Pyden 0.25.1
-
-img_struct = _namedtuple(
-        'Animation',
-        [
-            'image',
-            'w',
-            'h',
-            'col',
-            'row'
-         ]
-        )
-
-# Temporary disabled.
-
-##rdgray = lambda: random.choice(cfg.gray_scale_range)
-##rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
-##shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
-##rdsize = lambda: random.choices(
-##    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1
-##    )
-##rdyellow = lambda: random.choice(cfg.yellow_range)
+# Pyden 0.31.0
 
 dice = lambda chn: True if chn > random.random() * 100 else False
 
@@ -59,17 +39,17 @@ screen_rect = screen.get_rect()
 
 # Load resources.
 
-    # Animations and images.
+# The 'transparent' grid.
 
 test_grid_dir = 'images/Checkered.png'
-# The 'transparent' grid.
 test_grid = pygame.image.load(test_grid_dir).convert_alpha()
 test_grid_partial = test_grid.subsurface(screen_rect)
 
 explode_dir = 'images/stone.png'
-# A explosion animation named 'stone', uh...
 
 ufo_dir = 'images/ufo.gif'
+
+flash_dir = 'images/explosion1.png'
 
 rocket_dir = 'images/rocket02.png'
 # The rocket projectile.
@@ -100,50 +80,29 @@ Display text on x, y.\
     
     return None
 
-def animation_loader(
-    image: pygame.Surface=None,
-    w=70,
-    h=70,
-    col=1,
-    row=1
-    ) -> img_struct:
-    '''\
-Resolve or packs necessary info into 'img_struct' container.\
-'''
-    # 'isinstance' can test both native and custom classes.
-    if image is not None:
-        if isinstance(image, pygame.Surface):
-            pass
-        elif os.path.exists(image):
-            # if it's not 'pygame.Surface', but a available path then:
-            image = pygame.image.load(image).convert_alpha()
-        else:
-            raise TypeError(f"Cannot resolve {image}")
-    struct = img_struct(
-        image=image,
-        w=w,
-        h=h,
-        col=col,
-        row=row
-        )
-    return struct
-
 # Load resource
 
-# Improving effect of explode animation, it's doesn't need that much frames.
-explode = animation_loader(
+# Improve effect of explosion animation, it's doesn't need that much frames.
+
+explode = animation.loader(
     image=explode_dir,
     w=50,
     h=50,
-    col=1, # originally 6.
+    col=1, # Full: 6.
     row=5
     )
 
-ufo = animation_loader(
+ufo = animation.loader(
     image=ufo_dir,
     w=58,
     h=34,
     col=12
+    )
+
+flash = animation.loader(
+    image=flash_dir,
+    w=15,
+    h=15
     )
 
 def transparent_image(
@@ -159,44 +118,9 @@ def transparent_image(
         )
     return surface
 
-class Animation_core():
-    '''Takes 'img_struct', resolve it into frame list.'''
-    def __init__(self,
-                 *,
-                 image_struct=None,
-                 ):
-        # Progessing: take 'img_struct' and resolve.
-        # Unpack data.
-        self.image_struct = image_struct
-        image, w, h, col, row = image_struct
-        
-        if image is None:
-            self.image = pygame.Surface((w, h), pygame.SRCALPHA)
-            self.rect = self.image.get_rect()
-            self.image.fill((0, 0, 0, 0))
-            pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
-            self.index = None
-        elif isinstance(image, pygame.Surface):
-            self.index = 0
-            self.animation_list = []
-            self.master_image = image
-            for i in range(row):
-                for j in range(col):
-                    self.animation_list.append(
-                        [j*w, i*h, w, h]
-                        )
-            self.rect = pygame.rect.Rect(0, 0, w, h)
-            # Set a smaller collide rect for better player experience?
-            ani_rect = self.animation_list[self.index]
-            self.ani_len = len(self.animation_list)
-            self.image = self.master_image.subsurface(ani_rect)
-        else:
-            raise TypeError(
-                f"Expecting 'image_struct' type, got {image}."
-                )
 
-class resource():
-    '''Resource container.'''
+class Resource():
+    '''Resource container and manager.'''
     __slots__ = [   # Fixed data structure.
         'name',
         'current_val',
@@ -255,7 +179,6 @@ class resource():
             if elapsed_time > self.charge_speed * 1000\
                and self.current_val < self.max_val:
                 permission = True
-                
             return permission
         
         if is_available():
@@ -266,22 +189,22 @@ class resource():
         # Limit the minimum val to zero.
         if self.current_val < 0: self.current_val = 0
 
-    def zero(self):
-        '''Reduce resource to zero.'''
-        self.current_val = 0
-
     def charge(self, val=0):
         '''Charge resource with 'val'.'''
         if self.ratio < 1:
             self.current_val += val
             self._over_charge_check()
 
+    def _to_zero(self):
+        '''Reduce resource to zero.'''
+        self.current_val = 0
+
     def _to_max(self):
         '''Charge resource to its maximum value.'''
         self.current_val = self.max_val
 
     def _over_charge_check(self):
-        '''If current_val exceeds max_val, set if as max_val.'''
+        '''If current_val exceeds max_val, set it to max_val.'''
         if self.current_val > self.max_val:
             self.current_val = self.max_val
 
@@ -312,7 +235,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         # Must be explictly.
         super(Character, self).__init__()
 
-        Animation_core.__init__(
+        animation.Core.__init__(
             self,
             image_struct=image
             )
@@ -328,7 +251,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         self.last_fire = now
 
         # Set charge attr.
-        self.Charge = resource(
+        self.Charge = Resource(
             name='Charge',
             init_val=0,
             max_val=1000,
@@ -337,7 +260,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
             init_time=now
             )
 
-        self.Ult = resource(
+        self.Ult = Resource(
             name='Ultimate',
             init_val=0,
             max_val=2000,
@@ -346,7 +269,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
             init_time=now
             )
 
-        self.Hp = resource(
+        self.Hp = Resource(
             name='Health',
             init_val=100,
             max_val=100,
@@ -384,7 +307,6 @@ If given a image, set 'w' and 'h' to the unit size of image,
         if keypress[pygame.K_KP8]: # Test.
             print("<Pressed 'KP8'>")
 
-
         if keypress[pygame.K_j]:
             # Cast normal attack.
             self._create_bullet(projectile_group)
@@ -393,12 +315,12 @@ If given a image, set 'w' and 'h' to the unit size of image,
             # Cast charged skill.
             ratio = self.Charge.ratio
             if self.Charge.ratio == 1:
-                self.Charge.zero()
+                self.Charge._to_zero()
 
         if keypress[pygame.K_l]:
             # Cast ult.
             if self.Ult.ratio == 1:
-                self.Ult.zero()
+                self.Ult._to_zero()
 
     def _create_bullet(self, projectile_group):
         now = pygame.time.get_ticks()
@@ -417,7 +339,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
             )
         x, y = self.rect.midtop
         w, h = image.get_rect().size
-        img = animation_loader(
+        img = animation.loader(
             image=image,
             w=w,
             h=h
@@ -471,7 +393,7 @@ class Mob(pygame.sprite.Sprite):
                  ):
         super(Mob, self).__init__()
 
-        Animation_core.__init__(
+        animation.Core.__init__(
             self,
             image_struct=image
             )
@@ -486,7 +408,7 @@ class Mob(pygame.sprite.Sprite):
         self.fire_rate = 1
         self.last_fire = now
 
-        self.Hp = resource(
+        self.Hp = Resource(
             name='Hp',
             charge_val=1, # Will not recover over time.
             delay=True,
@@ -532,7 +454,7 @@ class Mob(pygame.sprite.Sprite):
             )
         x, y = self.rect.midbottom
         w, h = image.get_rect().size
-        img = animation_loader(
+        img = animation.loader(
             image=image,
             w=w,
             h=h
@@ -591,7 +513,7 @@ class Animated_object(pygame.sprite.Sprite):
 
         super(Animated_object, self).__init__()
 
-        Animation_core.__init__(
+        animation.Core.__init__(
             self,
             image_struct=image
             )
@@ -648,7 +570,7 @@ Minus direct for upward, positive direct for downward.\
         
         super(Projectile, self).__init__()
 
-        Animation_core.__init__(
+        animation.Core.__init__(
             self,
             image_struct=image
             )
@@ -701,12 +623,8 @@ Minus direct for upward, positive direct for downward.\
 
     # End of Projectile.
 
-    # Define bullet type.
-
-def bullet_creator(btype: str):
+class Penetratable(pygame.sprite.Sprite):
     pass
-
-    # End of bullet type.
 
     # Define Skill_panel.
 
@@ -727,7 +645,7 @@ class Skill_panel(pygame.sprite.Sprite):
         
         super(Skill_panel, self).__init__()
 
-        Animation_core.__init__(
+        animation.Core.__init__(
             self,
             image_struct=image
             )
@@ -821,7 +739,7 @@ animated_object_group = pygame.sprite.Group()
 
     # Skill panel.
 
-blank100 = animation_loader(w=100, h=100)
+blank100 = animation.loader(w=100, h=100)
 
 charge = Skill_panel(
     x_pos=screen_rect.w-180,
@@ -831,7 +749,7 @@ charge = Skill_panel(
     image=blank100
     )
 
-blank75 = animation_loader(w=75, h=75)
+blank75 = animation.loader(w=75, h=75)
 
 charge2 = Skill_panel(
     x_pos=screen_rect.w-350,
@@ -841,7 +759,7 @@ charge2 = Skill_panel(
     image=blank75
     )
 
-blank80 = animation_loader(w=80, h=80)
+blank80 = animation.loader(w=80, h=80)
 
 HP_monitor = Skill_panel(
     x_pos=60,
@@ -892,7 +810,7 @@ Catches 'player' and 'event' param in global and show.\
         show_text(
             f'<{m_pos_x}, {m_pos_y}>',
             m_pos_x,
-            m_pos_y,
+            m_pos_y-26,
             color=cfg.color.black
             )
         show_text(
@@ -900,6 +818,12 @@ Catches 'player' and 'event' param in global and show.\
             0,
             33,
             color=cfg.color.purple
+            )
+        show_text(
+            pygame.time.get_ticks(),
+            0,
+            66,
+            color=cfg.color.red
             )
 
 
@@ -919,7 +843,6 @@ class AnimationHandle():
 
 class BulletHandle():
     '''(Progressing)Managing bullet types.'''
-    b_shift = lambda: random.randint(-2, 2)
     
     def __init__(self,
                  *,
@@ -927,8 +850,8 @@ class BulletHandle():
                  projectile_group=None
                  ):
         self.shooter = shooter
-        self.group = group
-        if isinstance(shooter, Player):
+        self.projectile_group =projectile_group
+        if isinstance(shooter, Character):
             self.direct = -1 # Upward.
             
             basic_bit_image = pygame.Surface(
@@ -939,7 +862,7 @@ class BulletHandle():
                 )
             w, h = basic_bit_image.get_rect().size
             self._basic_bit_struct = animation_loader(
-                image=self._basic_bit_image,
+                image=basic_bit_image,
                 w=w,
                 h=h
                 )
@@ -947,9 +870,10 @@ class BulletHandle():
             self.direct = 1 # Downward.
     
     def basic_bit(self):
+        b_shift = lambda: random.randint(-2, 2)
         x, y = self.shooter.rect.midtop
         bullet = Projectile(
-            init_x=x+self.b_shift(),
+            init_x=x+b_shift(),
             init_y=y,
             direct=self.direct,
             speed=20,
@@ -957,7 +881,7 @@ class BulletHandle():
             shooter=self.shooter,
             image=self._basic_bit_struct
             )
-        self.project_group.add(bullet)
+        self.projectile_group.add(bullet)
 
 
 class MobHandle():
@@ -1032,6 +956,10 @@ class MobHandle():
         for hostile in self.enemy_group:
             if hostile.Hp.current_val <= 0:
                 self.enemy_group.remove(hostile)
+
+                global KILL_COUNT # Not a good choice.
+                KILL_COUNT += 1
+                
                 
                 # Dead animation.
                 # Target: random shift, with spawn interval.(other handle?)
@@ -1061,8 +989,12 @@ MobHandler = MobHandle(
 # Init game loop.
 
 clock = pygame.time.Clock()
+
+# Game contants.
+
 Run_flag = True
 PAUSE = False
+KILL_COUNT = 0
 
 # Start game loop.
 
@@ -1107,11 +1039,16 @@ while Run_flag:
 
             if key == pygame.K_p:
                 PAUSE = not PAUSE
+                print("<PAUSE>")
                 while PAUSE:
                     event = pygame.event.wait()
                     if event.type == pygame.KEYDOWN\
                        and event.key == pygame.K_p:
                         PAUSE = not PAUSE
+                        print("<ACTION>")
+                        pass
+                    pass
+                pass
         else:
             pass
     
@@ -1149,6 +1086,12 @@ while Run_flag:
             collided.Hp.current_val -= proj.dmg
             proj._drain()
             projectile_group.remove(proj)
+
+            proj_pos_x, proj_pos_y = proj.rect.midtop
+            flash_width, flash_height = flash.image.get_rect().size
+            f_topleft = (proj_pos_x - flash_width/2), (proj_pos_y - flash_height/2)
+
+            screen.blit(flash.image, f_topleft)
             
     # Enemy projectiles.
     hostile_projectile_group.update(now)
@@ -1178,6 +1121,17 @@ while Run_flag:
     UI_group.draw(screen)
     UI_group.update(
         player
+        )
+
+    if DEV_MODE:
+        color = cfg.color.black
+    else:
+        color = cfg.color.white
+    show_text(
+        f"KILLED: {KILL_COUNT}",
+        400,
+        550,
+        color=color
         )
 
     # End of game process.

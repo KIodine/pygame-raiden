@@ -47,6 +47,14 @@ yellow_range = [(255, 255 - i, 0)
 rand_speed_floor = 5
 rand_speed_ciel = 15
 
+rdgray = lambda: random.choice(gray_scale_range)
+rdspeed = lambda: rand_speed_floor + rand_speed_ciel * random.random()
+shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
+rdsize = lambda: random.choices(
+    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1
+    )
+rdyellow = lambda: random.choice(yellow_range)
+
 # Windows.
 W_WIDTH = 1024
 W_HEIGHT = 640
@@ -62,10 +70,10 @@ font_msjh = 'fonts/msjh.ttf'
 play_bgm = True
 firing_sound = "music/match0.wav"
 enemy_firing_sound = "music/badswap.wav"
-#firing_sound = 'music/beep1.ogg'
+
 bgm = "music/tetrisb.mid"
 dead_bgm = "music/Trap-music.mp3"
-#bgm = 'music/Diebuster OST- Escape Velocity.mp3'
+
 volume_ratio = 0.25
 
 # Game content.-------------------------------------------------------
