@@ -2,13 +2,17 @@ import sys
 import os
 import random
 import math
+import time
 
 import pygame
 
 import config as cfg
 import animation
+import abilities
 
-# Pyden 0.31.0
+# Pyden 0.33.2
+
+_zero = time.perf_counter() # Reference point.
 
 dice = lambda chn: True if chn > random.random() * 100 else False
 
@@ -23,8 +27,8 @@ FPS = 60
 
 DEV_MODE = True
 
-# Switch DEV_MODE by 'F2' key.
-# Charge resource to full by 'F3' key.
+# F2: Switch DEV_MODE.
+# F3: Charge resource to full.
 
 # Init window.
 
@@ -32,16 +36,14 @@ pygame.init()
 pygame.display.init()
 pygame.display.set_caption("Interstellar")
 
-screen = pygame.display.set_mode(cfg.W_SIZE, 0, 32)
+screen = pygame.display.set_mode(cfg.W_SIZE, 0, 32) # RGBA
 screen.fill(cfg.color.black)
 
 screen_rect = screen.get_rect()
 
 # Load resources.
 
-# The 'transparent' grid.
-
-test_grid_dir = 'images/Checkered.png'
+test_grid_dir = 'images/Checkered.png' # The 'transparent' grid.
 test_grid = pygame.image.load(test_grid_dir).convert_alpha()
 test_grid_partial = test_grid.subsurface(screen_rect)
 
@@ -51,44 +53,15 @@ ufo_dir = 'images/ufo.gif'
 
 flash_dir = 'images/explosion1.png'
 
-rocket_dir = 'images/rocket02.png'
-# The rocket projectile.
-
-    # Fonts.
 msjh_dir = 'fonts/msjh.ttf'
 msjh_24 = pygame.font.Font(msjh_dir, 24)
 msjh_16 = pygame.font.Font(msjh_dir, 16)
-
-# Define simple functions.
-
-def show_text(text: str,
-              x,
-              y,
-              font=msjh_16,
-              color=cfg.color.white
-              ):
-    '''\
-Display text on x, y.\
-'''
-    if not isinstance(text, str):
-        try:
-            text = str(text)
-        except:
-            raise
-    rendered_text = font.render(text, True, color)
-    screen.blit(rendered_text, (x, y))
-    
-    return None
-
-# Load resource
-
-# Improve effect of explosion animation, it's doesn't need that much frames.
 
 explode = animation.loader(
     image=explode_dir,
     w=50,
     h=50,
-    col=1, # Full: 6.
+    col=1, # Full: 6. Shorter frames for better performance.
     row=5
     )
 
@@ -104,6 +77,23 @@ flash = animation.loader(
     w=15,
     h=15
     )
+
+def show_text(text: str,
+              x,
+              y,
+              font=msjh_16,
+              color=cfg.color.white
+              ):
+    '''Display text on x, y.'''
+    if not isinstance(text, str):
+        try:
+            text = str(text)
+        except:
+            raise
+    rendered_text = font.render(text, True, color)
+    screen.blit(rendered_text, (x, y))
+    
+    return None
 
 def transparent_image(
     w=50,
@@ -121,7 +111,8 @@ def transparent_image(
 
 class Resource():
     '''Resource container and manager.'''
-    __slots__ = [   # Fixed data structure.
+    # Fixed data structure.
+    __slots__ = [
         'name',
         'current_val',
         'max_val',
@@ -132,6 +123,7 @@ class Resource():
         'delay_time',
         'last_val'
         ]
+    
     def __init__(self,
                  *,
                  name='NONE',
@@ -295,17 +287,8 @@ If given a image, set 'w' and 'h' to the unit size of image,
         # Normal attack: 'j'
         # Charged attack: 'k'
         # Ult: 'l'(L)
-        if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
-            self.rect.move_ip(0, -self.move_y_rate)
-        if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
-            self.rect.move_ip(0, self.move_y_rate)
-        if keypress[pygame.K_a] and self.rect.left > screen_rect.left:
-            self.rect.move_ip(-self.move_x_rate, 0)
-        if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
-            self.rect.move_ip(self.move_x_rate, 0)
 
-        if keypress[pygame.K_KP8]: # Test.
-            print("<Pressed 'KP8'>")
+        self.move(keypress)
 
         if keypress[pygame.K_j]:
             # Cast normal attack.
@@ -321,15 +304,30 @@ If given a image, set 'w' and 'h' to the unit size of image,
             # Cast ult.
             if self.Ult.ratio == 1:
                 self.Ult._to_zero()
+        return
 
+    def move(self, keypress):
+        '''Move player according to keypress, using WASD keys.'''
+        if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
+            self.rect.move_ip(0, -self.move_y_rate)
+        if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
+            self.rect.move_ip(0, self.move_y_rate)
+        if keypress[pygame.K_a] and self.rect.left > screen_rect.left:
+            self.rect.move_ip(-self.move_x_rate, 0)
+        if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
+            self.rect.move_ip(self.move_x_rate, 0)
+        return
+    
     def _create_bullet(self, projectile_group):
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
+        
         if now - self.last_fire > self.fire_rate**-1 * 1000:
             self.last_fire = now
             pass
         else:
             return
+        
         # Default bullet for test.
         image = pygame.Surface(
             (5, 15)
@@ -841,49 +839,6 @@ class AnimationHandle():
         raise NotImplementedError("Not implemented yet.")
 
 
-class BulletHandle():
-    '''(Progressing)Managing bullet types.'''
-    
-    def __init__(self,
-                 *,
-                 shooter=None,
-                 projectile_group=None
-                 ):
-        self.shooter = shooter
-        self.projectile_group =projectile_group
-        if isinstance(shooter, Character):
-            self.direct = -1 # Upward.
-            
-            basic_bit_image = pygame.Surface(
-                (5, 15)
-                )
-            basic_bit_image.fill(
-                (255, 150, 0)
-                )
-            w, h = basic_bit_image.get_rect().size
-            self._basic_bit_struct = animation_loader(
-                image=basic_bit_image,
-                w=w,
-                h=h
-                )
-        if isinstance(shooter, Mob):
-            self.direct = 1 # Downward.
-    
-    def basic_bit(self):
-        b_shift = lambda: random.randint(-2, 2)
-        x, y = self.shooter.rect.midtop
-        bullet = Projectile(
-            init_x=x+b_shift(),
-            init_y=y,
-            direct=self.direct,
-            speed=20,
-            dmg=15,
-            shooter=self.shooter,
-            image=self._basic_bit_struct
-            )
-        self.projectile_group.add(bullet)
-
-
 class MobHandle():
 
     def __init__(self,
@@ -899,15 +854,15 @@ class MobHandle():
         self.spawn_interval = spawn_interval * 1000
         self.max_amount = max_amount
 
-    def __call__(self, current_time):
-        # Use a instantiated class as function.
-        
+    def refresh(self):
         # Psuedo code:
         # if there is space for spawn, wait for 'spawn_interval':
         #   spawn_enemy()
         #   if spawned, set 'next_spawn' as 'current_time' + 'spawn_interval'
         # if there is no space for spawn, set 'next_spawn' as
         #   'current_time' + 'spawn_interval'
+
+        current_time = pygame.time.get_ticks()
         
         reset_next_spawn = lambda: current_time + self.spawn_interval
         
@@ -983,6 +938,32 @@ class MobHandle():
 MobHandler = MobHandle(
     current_time=pygame.time.get_ticks(),
     enemy_group=enemy_group,
+    )
+
+player_bullets = abilities.BulletHandle(
+    shooter=player,
+    group=projectile_group,
+    target_group=enemy_group,
+    collide_coef=1.2,
+    surface=screen,
+    on_hit=flash
+    )
+
+enemy_bullets = abilities.BulletHandle(
+    group=hostile_projectile_group,
+    target_group=player_group,
+    collide_coef=0.7,
+    surface=screen,
+    on_hit=flash
+    )
+
+# Elapsed time.
+_elapsed_time = time.perf_counter() - _zero
+
+print(
+    "Time spent during initiate: {:.3f} ms".format(
+        _elapsed_time * 1000
+        )
     )
 
 
@@ -1066,50 +1047,10 @@ while Run_flag:
     enemy_group.update(now) # Transfer to 'MobHandle'?
     enemy_group.draw(screen)
     
-    MobHandler(now)
+    MobHandler.refresh()
 
-    # Player projectiles.
-    projectile_group.update(now)
-    projectile_group.draw(screen)
-    for proj in projectile_group:
-        if not screen_rect.contains(proj.rect):
-            projectile_group.remove(proj)
-            
-        collides = pygame.sprite.spritecollide(
-            proj,
-            enemy_group,
-            False,
-            collided=pygame.sprite.collide_rect_ratio(1.1)
-            )
-        # Enemy have a slightly bigger hitbox.
-        for collided in collides:
-            collided.Hp.current_val -= proj.dmg
-            proj._drain()
-            projectile_group.remove(proj)
-
-            proj_pos_x, proj_pos_y = proj.rect.midtop
-            flash_width, flash_height = flash.image.get_rect().size
-            f_topleft = (proj_pos_x - flash_width/2), (proj_pos_y - flash_height/2)
-
-            screen.blit(flash.image, f_topleft)
-            
-    # Enemy projectiles.
-    hostile_projectile_group.update(now)
-    hostile_projectile_group.draw(screen)
-    for host_proj in hostile_projectile_group:
-        if not screen_rect.contains(host_proj):
-            hostile_projectile_group.remove(host_proj)
-
-        collides = pygame.sprite.spritecollide(
-            host_proj,
-            player_group,
-            False,
-            collided=pygame.sprite.collide_rect_ratio(0.6)
-            )
-        # Player have smaller hitbox than it looks like.
-        for collided in collides:
-            collided.Hp.current_val -= host_proj.dmg
-            hostile_projectile_group.remove(host_proj)
+    player_bullets.refresh()
+    enemy_bullets.refresh()
 
     # Animation handle.
     for ani in animated_object_group:
