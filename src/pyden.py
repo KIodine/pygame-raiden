@@ -12,6 +12,10 @@ import abilities
 
 # Pyden 0.33.2
 
+# Note: Seperate hitbox frame drawing from every class.
+# Note: Seperate actions of player for further develope.
+# Note: Rename config module?
+
 _zero = time.perf_counter() # Reference point.
 
 dice = lambda chn: True if chn > random.random() * 100 else False
