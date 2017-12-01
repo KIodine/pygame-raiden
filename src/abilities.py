@@ -36,6 +36,7 @@ def init(screen):
     return None
 
 def is_initiated() -> bool:
+    '''Return True if module is successfully initialized.'''
     return _initiated
 # Test.---------------------------------------------------------------
 
@@ -96,13 +97,14 @@ class Linear(pygame.sprite.Sprite):
         pass
 
     def update(self):
+        now = pygame.time.get_ticks()
         if self.index is not None:
-            elapsed_time = current_time - self.last_draw
+            elapsed_time = now - self.last_draw
             if elapsed_time > self.fps**-1 * 1000:
                 self.index += 1
                 ani_rect = self.animation_list[self.index % self.ani_len]
                 self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
+                self.last_draw = now
                 pass
             pass
         else:
@@ -114,9 +116,9 @@ class Linear(pygame.sprite.Sprite):
                 )
             pass
         
-        if current_time - self.last_move > self.move_rate:
-            self.rect.centery += self.y_speed * self.direct
-            self.last_move = current_time
+        if now - self.last_move > self.move_rate:
+            self.rect.centery += self.speed_y * self.direct
+            self.last_move = now
             pass
         return
 
@@ -147,7 +149,7 @@ class BulletHandle():
         ratio = self.collide_coef
         now = pygame.time.get_ticks()
         
-        self.group.update(now)
+        self.group.update()
         self.group.draw(surface)
 
         for proj in self.group:

@@ -10,7 +10,7 @@ import config as cfg
 import animation
 import abilities
 
-# Pyden 0.33.2
+# Pyden 0.36.1
 
 # Note: Seperate hitbox frame drawing from every class.
 # Note: Seperate actions of player for further develope.
@@ -42,7 +42,8 @@ clock = pygame.time.Clock()
 
 # Init pygame and display.--------------------------------------------
 
-pygame.init()
+npass, nfail = pygame.init()
+assert nfail == 0
 pygame.display.init()
 pygame.display.set_caption("Interstellar")
 
@@ -57,6 +58,12 @@ abilities.init(screen)
 assert abilities.is_initiated()
 
 # Load resources.-----------------------------------------------------
+
+if not os.path.exists('images'):
+    try:
+        os.chdir('src')
+    except OSError:
+        raise
 
 test_grid_dir = 'images/Checkered.png' # The 'transparent' grid.
 test_grid = pygame.image.load(test_grid_dir).convert_alpha()
@@ -126,6 +133,8 @@ def transparent_image(
     return surface
 
 # Classes.------------------------------------------------------------
+
+# Note: Use magic method or add a 'add' function?
 
 class Resource():
     '''Resource container and manager.'''
@@ -365,14 +374,14 @@ If given a image, set 'w' and 'h' to the unit size of image,
             w=w,
             h=h
             )
-        bullet = Projectile(
-            init_x=x+b_shift(),
-            init_y=y-8,
+        bullet = abilities.Linear(
+            init_x=x + b_shift(),
+            init_y=y - 8,
             image=img,
             speed=18,
-            dmg=20,
+            dmg=22,
             shooter=self
-            )
+        )
         projectile_group.add(bullet)
         return        
 
@@ -473,12 +482,12 @@ class Mob(pygame.sprite.Sprite):
             w=w,
             h=h
             )
-        bullet = Projectile(
+        bullet = abilities.Linear(
             init_x=x+b_shift(),
             init_y=y+8,
             direct=1,
             image=img,
-            )
+        )
         projectile_group.add(bullet)
         return
 
@@ -536,76 +545,6 @@ class Animated_object(pygame.sprite.Sprite):
                 self.rect,
                 1
                 )
-            pass
-        pass
-
-
-
-# Projectile.---------------------------------------------------------
-
-class Projectile(pygame.sprite.Sprite):
-    '''\
-Simple linear projectile.
-Minus direct for upward, positive direct for downward.\
-'''
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 direct=-1,
-                 speed=10,
-                 dmg=10,
-                 shooter=None,
-                 image=None
-                 ):
-        
-        super(Projectile, self).__init__()
-
-        animation.Core.__init__(
-            self,
-            image_struct=image
-            )
-
-        now = pygame.time.get_ticks()
-
-        self.dmg = dmg
-        self.shooter = shooter
-        
-        self.rect.center = init_x, init_y
-        self.direct = direct
-        self.y_speed = speed
-        self.move_rate = 0.1
-        self.last_move = now
-
-        self.fps = 12
-        self.last_draw = now
-        pass
-
-    def _drain(self):
-        if self.shooter is not None:
-            self.shooter.Ult.charge(self.dmg * 1)
-        return
-        
-    def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index % self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-                pass
-        else:
-            pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            pass
-        if current_time - self.last_move > self.move_rate:
-            self.rect.centery += self.y_speed * self.direct
-            self.last_move = current_time
             pass
         pass
 
@@ -694,7 +633,7 @@ player_group = pygame.sprite.Group()
 player_group.add(player)
 
 enemy = Mob(
-    init_x=screen_rect.centerx-100,
+    init_x=screen_rect.centerx - 100,
     init_y=screen_rect.centery,
     image=ufo
     )
@@ -916,6 +855,7 @@ class MobHandle():
                 hostile.attack(hostile_projectile_group)
                 # Play shooting sound here.
 
+# Instance.-----------------------------------------------------------
 
 MobHandler = MobHandle(
     group=enemy_group,
@@ -1087,26 +1027,25 @@ Catches 'player' and 'event' param in global and show.\
 while RUN_FLAG:
     clock.tick(FPS)
     now = pygame.time.get_ticks()
-    
+    # Background.-----------------------
     if DEV_MODE:
         screen.blit(test_grid_partial, (0, 0))
     else:
         screen.fill(BLACK)
+    #-----------------------------------
         
     events = pygame.event.get()
     # Little trick to preserve last result of 'event'.
     for event in events:
         pass
-
+    # Action and info.------------------
     hotkey_actions(events)
     dev_info(events)
-
+    #-----------------------------------
     keypress = pygame.key.get_pressed()
 
     # Transfer to handler?
     player.actions(keypress)
-
-    # Game process.
 
     player_group.update(now)
     player_group.draw(screen)
