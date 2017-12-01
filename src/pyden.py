@@ -20,7 +20,7 @@ _zero = time.perf_counter() # Reference point.
 
 dice = lambda chn: True if chn > random.random() * 100 else False
 
-# Set constants.
+# Set constants.------------------------------------------------------
 
 W_WIDTH = cfg.W_WIDTH
 W_HEIGHT = cfg.W_HEIGHT
@@ -29,12 +29,18 @@ BLACK = cfg.color.black
 
 FPS = 60
 
+# Game constants and utilities.---------------------------------------
+
 DEV_MODE = True
+RUN_FLAG = True
+PAUSE = False
+KILL_COUNT = 0
+clock = pygame.time.Clock()
 
 # F2: Switch DEV_MODE.
 # F3: Charge resource to full.
 
-# Init window.
+# Init pygame and display.--------------------------------------------
 
 pygame.init()
 pygame.display.init()
@@ -45,7 +51,12 @@ screen.fill(cfg.color.black)
 
 screen_rect = screen.get_rect()
 
-# Load resources.
+# Init custom modules.------------------------------------------------
+
+abilities.init(screen)
+assert abilities.is_initiated()
+
+# Load resources.-----------------------------------------------------
 
 test_grid_dir = 'images/Checkered.png' # The 'transparent' grid.
 test_grid = pygame.image.load(test_grid_dir).convert_alpha()
@@ -82,6 +93,8 @@ flash = animation.loader(
     h=15
     )
 
+# Functions.----------------------------------------------------------
+
 def show_text(text: str,
               x,
               y,
@@ -112,6 +125,7 @@ def transparent_image(
         )
     return surface
 
+# Classes.------------------------------------------------------------
 
 class Resource():
     '''Resource container and manager.'''
@@ -149,6 +163,7 @@ class Resource():
         self.delay = delay
         self.delay_time = delay_time
         self.last_val = init_val
+        pass
 
     def __repr__(self):
         s = "<{name}: {current_val}/{max_val} ({ratio:.1f}%)>"
@@ -184,27 +199,15 @@ class Resource():
             self.last_val = self.current_val
         # Limit the minimum val to zero.
         if self.current_val < 0: self.current_val = 0
+        return
 
     def charge(self, val=0):
         '''Charge resource with 'val'.'''
         if self.ratio < 1:
             self.current_val += val
             self._over_charge_check()
-
-    def _to_zero(self):
-        '''Reduce resource to zero.'''
-        self.current_val = 0
-
-    def _to_max(self):
-        '''Charge resource to its maximum value.'''
-        self.current_val = self.max_val
-
-    def _over_charge_check(self):
-        '''If current_val exceeds max_val, set it to max_val.'''
-        if self.current_val > self.max_val:
-            self.current_val = self.max_val
-
-        return None
+            pass
+        return
 
     @property
     def ratio(self):
@@ -212,9 +215,24 @@ class Resource():
         if c_val < 0: c_val = 0
         return c_val/self.max_val
 
-# Interactive objects.
+    def _to_zero(self):
+        '''Reduce resource to zero.'''
+        self.current_val = 0
+        return
 
-    # Define Charactor.
+    def _to_max(self):
+        '''Charge resource to its maximum value.'''
+        self.current_val = self.max_val
+        return
+
+    def _over_charge_check(self):
+        '''If current_val exceeds max_val, set it to max_val.'''
+        if self.current_val > self.max_val:
+            self.current_val = self.max_val
+        return
+
+
+# Character.----------------------------------------------------------
 
 class Character(pygame.sprite.Sprite):
     
@@ -285,6 +303,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         # Set fps.
         self.fps = 24
         self.last_draw = now
+        pass
 
     def actions(self, keypress):
         # Move: W A S D.
@@ -355,7 +374,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
             shooter=self
             )
         projectile_group.add(bullet)
-        
+        return        
 
     def update(self, current_time):
         # Is there a way to seperate?
@@ -366,24 +385,16 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 ani_rect = self.animation_list[self.index%self.ani_len]
                 self.image = self.master_image.subsurface(ani_rect)
                 self.last_draw = current_time
-                
-        # Draw hitbox frame.
-        if DEV_MODE:
-            frame = pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            
-
+                pass
+            pass
+        
         for res in self._resource_list:
             res.recover(current_time)
+            pass
+        pass
 
 
-    # End of Character.
-
-    # Define Mob.
+# Mob.----------------------------------------------------------------
 
 class Mob(pygame.sprite.Sprite):
     '''Create mob object that oppose to player.'''
@@ -438,6 +449,7 @@ class Mob(pygame.sprite.Sprite):
             bar,
             0 # fill
             )
+        return
 
     def attack(self, projectile_group):
         now = pygame.time.get_ticks()
@@ -468,6 +480,7 @@ class Mob(pygame.sprite.Sprite):
             image=img,
             )
         projectile_group.add(bullet)
+        return
 
     def update(self, current_time):
         if self.index is not None:
@@ -482,27 +495,10 @@ class Mob(pygame.sprite.Sprite):
             res.recover(current_time)
 
         self._draw_hpbar()
-        
-        # Draw hitbox frame.
-        if DEV_MODE:
-            frame = pygame.draw.rect(
-                screen,
-                (255, 0, 0, 255), # red for enemy.
-                self.rect,
-                1
-                )
-            x, y = self.rect.bottomright
-            show_text(
-                self.Hp,
-                x,
-                y,
-                color=cfg.color.black
-                )
+        pass
 
 
-    # End of Mob.
-
-    # Define Animated_object
+# Animated_object.----------------------------------------------------
 
 class Animated_object(pygame.sprite.Sprite):
 
@@ -540,19 +536,12 @@ class Animated_object(pygame.sprite.Sprite):
                 self.rect,
                 1
                 )
-            
-        if DEV_MODE:
-            frame = pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            
+            pass
+        pass
 
-    # End of Animated_object.
 
-    # Define Projectile.
+
+# Projectile.---------------------------------------------------------
 
 class Projectile(pygame.sprite.Sprite):
     '''\
@@ -590,19 +579,22 @@ Minus direct for upward, positive direct for downward.\
 
         self.fps = 12
         self.last_draw = now
+        pass
 
     def _drain(self):
         if self.shooter is not None:
             self.shooter.Ult.charge(self.dmg * 1)
+        return
         
     def update(self, current_time):
         if self.index is not None:
             elapsed_time = current_time - self.last_draw
             if elapsed_time > self.fps**-1 * 1000:
                 self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
+                ani_rect = self.animation_list[self.index % self.ani_len]
                 self.image = self.master_image.subsurface(ani_rect)
                 self.last_draw = current_time
+                pass
         else:
             pygame.draw.rect(
                 screen,
@@ -610,25 +602,15 @@ Minus direct for upward, positive direct for downward.\
                 self.rect,
                 1
                 )
+            pass
         if current_time - self.last_move > self.move_rate:
             self.rect.centery += self.y_speed * self.direct
             self.last_move = current_time
-            
-        if DEV_MODE:
-            pygame.draw.rect(
-                    screen,
-                    (255, 0, 0, 255),
-                    self.rect.inflate(2, 2),
-                    1
-                    )
+            pass
+        pass
 
 
-    # End of Projectile.
-
-class Penetratable(pygame.sprite.Sprite):
-    pass
-
-    # Define Skill_panel.
+# Skill_panel.--------------------------------------------------------
 
 class Skill_panel(pygame.sprite.Sprite):
     '''Skill charge instructor.'''
@@ -668,10 +650,10 @@ class Skill_panel(pygame.sprite.Sprite):
         max_val = res.max_val
         
         ratio = res.ratio
-        outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
+        self.outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
         
-        surf = pygame.Surface(outer_rect.size, pygame.SRCALPHA)
-        surf_rect = outer_rect.copy()
+        surf = pygame.Surface(self.outer_rect.size, pygame.SRCALPHA)
+        surf_rect = self.outer_rect.copy()
         surf_rect.center = surf.get_rect().center
         arc_rect = surf_rect.inflate(-10, -10)
         
@@ -688,31 +670,20 @@ class Skill_panel(pygame.sprite.Sprite):
             )
         if ratio == 1:
             # Outer rim indicates resource is full.
-            c_center = outer_rect.center
+            c_center = self.outer_rect.center
             pygame.draw.circle(
                 surf,
                 self.rim_color,
                 surf_rect.center,
-                int(outer_rect.width/2),
+                int(self.outer_rect.width/2),
                 3
                 )
-        screen.blit(surf, (outer_rect.topleft))
-        if DEV_MODE:
-            pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                outer_rect,
-                2
-                )
+        screen.blit(surf, (self.outer_rect.topleft))
+        pass
 
 
-    # End of Skill panel.
+# Instances.----------------------------------------------------------
 
-# End of interactive objects.
-
-# Init objects.
-
-    # Player object.
 player = Character(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery + 100,
@@ -779,14 +750,279 @@ UI_group.add(
     HP_monitor
     )
 
-# Define Handlers.
+# hitbox drawer.------------------------------------------------------
 
-def DEV_INFO(flag=DEV_MODE):
+def draw_boxes():
+    for player in player_group:
+        frame = pygame.draw.rect(
+            screen,
+            (0, 255, 0),
+            player.rect,
+            1
+            )
+        pass
+    for enemy in enemy_group:
+        frame = pygame.draw.rect(
+            screen,
+            (255, 0, 0), # red for enemy.
+            enemy.rect,
+            1
+            )
+        pass
+    for host_proj in hostile_projectile_group:
+        frame = pygame.draw.rect(
+            screen,
+            (255, 0, 0),
+            host_proj.rect.inflate(2, 2),
+            1
+            )
+        pass
+    for proj in projectile_group:
+        frame = pygame.draw.rect(
+                screen,
+                (255, 0, 0),
+                proj.rect.inflate(2, 2),
+                1
+                )
+        pass
+    for eff in animated_object_group:
+        frame = pygame.draw.rect(
+            screen,
+            (0, 255, 0),
+            eff.rect,
+            1
+            )
+        pass
+    for ui in UI_group:
+        frame = pygame.draw.rect(
+            screen,
+            (0, 255, 0, 255),
+            ui.outer_rect,
+            2
+            )
+        pass
+    return
+
+# Handlers.-----------------------------------------------------------
+
+class AnimationHandle():
+    '''Not implemented.'''
+    def __init__(self):
+        raise NotImplementedError("Not implemented yet.")
+
+
+# MobHandle.----------------------------------------------------------
+
+class MobHandle():
+
+    def __init__(self,
+                 *,
+                 group=None,
+                 spawn_interval=1,
+                 max_amount=10
+                 ):
+        now = pygame.time.get_ticks()
+        
+        self.next_spawn = now + spawn_interval * 1000
+        self.group = group
+        self.spawn_interval = spawn_interval * 1000
+        self.max_amount = max_amount
+
+    def refresh(self):
+        # Psuedo code:
+        # if there is space for spawn, wait for 'spawn_interval':
+        #   spawn_enemy()
+        #   if spawned, set 'next_spawn' as 'current_time' + 'spawn_interval'
+        # if there is no space for spawn, set 'next_spawn' as
+        #   'current_time' + 'spawn_interval'
+
+        current_time = pygame.time.get_ticks()
+        
+        self.group.update(current_time)
+        self.group.draw(screen)
+        
+        reset_next_spawn = lambda: current_time + self.spawn_interval
+        
+        if self.group is None:
+            return
+        self._clear_deadbody(current_time)
+        self._attack_random(5)
+        
+        if len(self.group) < self.max_amount:
+            if current_time > self.next_spawn:
+                self._spawn_random_pos()
+                self.next_spawn = reset_next_spawn() # Reset.
+        else:
+            self.next_spawn = reset_next_spawn()
+        return
+    
+    def _spawn_random_pos(self):
+        
+        # Add check(Psuedo code):
+        #   if enemy.rect collides existing enemy:
+        #     retry
+        safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
+        safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
+        
+        enemy = Mob(
+            init_x=safe_x_pos(),
+            init_y=safe_y_pos(),
+            image=ufo
+            )
+        while True:
+            if not pygame.sprite.spritecollide(
+                enemy,
+                self.group,
+                False
+                ):
+                break
+            else:
+                if DEV_MODE:
+                    print("<Collide detected, rearrange position.>")
+                enemy.rect.center = safe_x_pos(), safe_y_pos()
+        self.group.add(enemy)
+        return
+
+    def _clear_deadbody(self, current_time):
+        '''Clear hostile that 'Hp' less/equal than zero.'''
+        # Clear deadbody and play explosion.
+        global KILL_COUNT
+        
+        for hostile in self.group:
+            if hostile.Hp.current_val <= 0:
+                self.group.remove(hostile)
+
+                 # Not a good choice.
+                KILL_COUNT += 1
+                
+                # Dead animation.
+                # Target: random shift, with spawn interval.(other handle?)
+                x, y = hostile.rect.center
+                animated_object_group.add(
+                    Animated_object(
+                        init_x=x,
+                        init_y=y,
+                        image=explode
+                        )
+                    )
+                pass
+            pass
+        return
+
+    def _attack_random(self, chance):
+        '''Attack with n percent of chance.'''
+        for hostile in self.group:
+            if dice(chance):
+                hostile.attack(hostile_projectile_group)
+                # Play shooting sound here.
+
+
+MobHandler = MobHandle(
+    group=enemy_group,
+    )
+
+player_bullets = abilities.BulletHandle(
+    shooter=player,
+    group=projectile_group,
+    target_group=enemy_group,
+    collide_coef=1.2,
+    on_hit=flash
+    )
+
+enemy_bullets = abilities.BulletHandle(
+    group=hostile_projectile_group,
+    target_group=player_group,
+    collide_coef=0.7,
+    on_hit=flash
+    )
+
+# Elapsed time.
+_elapsed_time = time.perf_counter() - _zero
+
+print(
+    "Time spent during initiate: {:.3f} ms".format(
+        _elapsed_time * 1000
+        )
+    )
+
+# hotkey_actions.-----------------------------------------------------
+
+def hotkey_actions(events):
+    global DEV_MODE
+    global PAUSE
+    global RUN_FLAG
+    
+    for event in events:
+        if event.type == pygame.QUIT:
+            # The 'X' button on righttop corner.
+            RUN_FLAG = False
+        elif event.type == pygame.KEYDOWN:
+            key = event.key
+            
+            if key == pygame.K_ESCAPE:
+                RUN_FLAG = False
+                print("<Exit by 'ESC' key>")
+                pass
+                
+            if key == pygame.K_F2:
+                # Enable/disable develope mode.
+                DEV_MODE = not DEV_MODE
+                print(f"<DEV_MODE={DEV_MODE}>")
+                pass
+                
+            if key == pygame.K_F3:
+                print("<Charge resource to max>")
+                for p_res in player._resource_list:
+                    p_res._to_max()
+                for e in enemy_group:
+                    for e_res in e._resource_list:
+                        e_res._to_max()
+                        pass
+                    pass
+                pass
+                        
+            if key == pygame.K_F4:
+                player.Hp.current_val -= 50
+                pass
+
+            if key == pygame.K_p:
+                PAUSE = not PAUSE
+                print("<PAUSE>")
+                while PAUSE:
+                    event = pygame.event.wait()
+                    if event.type == pygame.KEYDOWN\
+                       and event.key == pygame.K_p:
+                        PAUSE = not PAUSE
+                        print("<ACTION>")
+                        pass
+                    pass
+                pass
+        else:
+            pass
+        pass
+    return
+
+# dev_info.-----------------------------------------------------------
+
+def dev_info(events):
     '''\
 Catches 'player' and 'event' param in global and show.\
 '''
-    if flag:
-        # Show character rect infos.
+    def event_info():
+        # If there is no event in 'events', for-loop will end immediatly,
+        # but 'event' is not changed and will remain its last result.
+        if 'event' in globals():
+            show_text(
+                event,
+                0,
+                0,
+                color=cfg.color.black
+                )
+            pass
+        return
+    
+    def player_info():
+        # Display character rect infos.
         if 'player' in globals():
             show_text(
                 player.rect,
@@ -800,14 +1036,23 @@ Catches 'player' and 'event' param in global and show.\
             490,
             color=cfg.color.black
             )
-            # Show key infos.
-        if 'event' in globals():
+            pass
+        return
+
+    def enemy_info():
+        for enemy in enemy_group:
+            x, y = enemy.rect.bottomright
             show_text(
-                event,
-                0,
-                0,
+                enemy.Hp,
+                x,
+                y,
                 color=cfg.color.black
                 )
+            pass
+        return
+
+    def game_info():
+        # Display misc infos.
         m_pos_x, m_pos_y = pygame.mouse.get_pos()
         show_text(
             f'<{m_pos_x}, {m_pos_y}>',
@@ -827,164 +1072,19 @@ Catches 'player' and 'event' param in global and show.\
             66,
             color=cfg.color.red
             )
-
-
-class PositionControll():
-    '''\
-    Providing position control by preset route.
-    '''
-    def __init__(self):
-        raise NotImplementedError("This class is yet being implemented.")
-
-
-class AnimationHandle():
-    '''Not implemented.'''
-    def __init__(self):
-        raise NotImplementedError("Not implemented yet.")
-
-
-class MobHandle():
-
-    def __init__(self,
-                 *,
-                 current_time,
-                 enemy_group=None,
-                 spawn_interval=1,
-                 max_amount=10
-                 ):
+        return
         
-        self.next_spawn = current_time + spawn_interval * 1000
-        self.enemy_group = enemy_group
-        self.spawn_interval = spawn_interval * 1000
-        self.max_amount = max_amount
+    if DEV_MODE:
+        event_info()
+        player_info()
+        enemy_info()
+        game_info()
+        pass
+    return
 
-    def refresh(self):
-        # Psuedo code:
-        # if there is space for spawn, wait for 'spawn_interval':
-        #   spawn_enemy()
-        #   if spawned, set 'next_spawn' as 'current_time' + 'spawn_interval'
-        # if there is no space for spawn, set 'next_spawn' as
-        #   'current_time' + 'spawn_interval'
+# Main phase.---------------------------------------------------------
 
-        current_time = pygame.time.get_ticks()
-        
-        reset_next_spawn = lambda: current_time + self.spawn_interval
-        
-        if self.enemy_group is None:
-            return
-        self._clear_deadbody(current_time)
-        self._attack_random(5)
-        
-        if len(self.enemy_group) < self.max_amount:
-            if current_time > self.next_spawn:
-                self._spawn_random_pos()
-                self.next_spawn = reset_next_spawn() # Reset.
-        else:
-            self.next_spawn = reset_next_spawn()
-    
-    def _spawn_random_pos(self):
-        
-        # Add check(Psuedo code):
-        #   if enemy.rect collides existing enemy:
-        #     retry
-        safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
-        safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
-        
-        enemy = Mob(
-            init_x=safe_x_pos(),
-            init_y=safe_y_pos(),
-            image=ufo
-            )
-        while True:
-            if not pygame.sprite.spritecollide(
-                enemy,
-                self.enemy_group,
-                False
-                ):
-                break
-            else:
-                if DEV_MODE:
-                    print("<Collide detected, rearrange position.>")
-                enemy.rect.center = safe_x_pos(), safe_y_pos()
-                
-        self.enemy_group.add(enemy)
-
-    def _clear_deadbody(self, current_time):
-        '''Clear hostile that 'Hp' less/equal than zero.'''
-        # Clear deadbody and play explosion.
-        for hostile in self.enemy_group:
-            if hostile.Hp.current_val <= 0:
-                self.enemy_group.remove(hostile)
-
-                global KILL_COUNT # Not a good choice.
-                KILL_COUNT += 1
-                
-                
-                # Dead animation.
-                # Target: random shift, with spawn interval.(other handle?)
-                x, y = hostile.rect.center
-                animated_object_group.add(
-                    Animated_object(
-                        init_x=x,
-                        init_y=y,
-                        image=explode
-                        )
-                    )
-
-    def _attack_random(self, chance):
-        '''Attack with n percent of chance.'''
-        for hostile in self.enemy_group:
-            if dice(chance):
-                hostile.attack(hostile_projectile_group)
-                # Play shooting sound here.
-
-
-MobHandler = MobHandle(
-    current_time=pygame.time.get_ticks(),
-    enemy_group=enemy_group,
-    )
-
-player_bullets = abilities.BulletHandle(
-    shooter=player,
-    group=projectile_group,
-    target_group=enemy_group,
-    collide_coef=1.2,
-    surface=screen,
-    on_hit=flash
-    )
-
-enemy_bullets = abilities.BulletHandle(
-    group=hostile_projectile_group,
-    target_group=player_group,
-    collide_coef=0.7,
-    surface=screen,
-    on_hit=flash
-    )
-
-# Elapsed time.
-_elapsed_time = time.perf_counter() - _zero
-
-print(
-    "Time spent during initiate: {:.3f} ms".format(
-        _elapsed_time * 1000
-        )
-    )
-
-
-# Init game loop.
-
-clock = pygame.time.Clock()
-
-# Game contants.
-
-Run_flag = True
-PAUSE = False
-KILL_COUNT = 0
-
-# Start game loop.
-
-    # Main phase.
-while Run_flag:
+while RUN_FLAG:
     clock.tick(FPS)
     now = pygame.time.get_ticks()
     
@@ -993,80 +1093,42 @@ while Run_flag:
     else:
         screen.fill(BLACK)
         
-    # Global hotkey actions.
     events = pygame.event.get()
-
+    # Little trick to preserve last result of 'event'.
     for event in events:
-        if event.type == pygame.QUIT:
-            Run_flag = False
-        elif event.type == pygame.KEYDOWN:
-            key = event.key
-            
-            if key == pygame.K_ESCAPE:
-                Run_flag = False
-                print("<Exit by 'ESC' key>")
-                
-            if key == pygame.K_F2:
-                # Enable/disable develope mode.
-                DEV_MODE = not DEV_MODE
-                print(f"<DEV_MODE={DEV_MODE}>")
-                
-            if key == pygame.K_F3:
-                print("<Charge resource to max>")
-                for p_res in player._resource_list:
-                    p_res._to_max()
-                for e in enemy_group:
-                    for e_res in e._resource_list:
-                        e_res._to_max()
-                        
-            if key == pygame.K_F4:
-                player.Hp.current_val -= 50
+        pass
 
-            if key == pygame.K_p:
-                PAUSE = not PAUSE
-                print("<PAUSE>")
-                while PAUSE:
-                    event = pygame.event.wait()
-                    if event.type == pygame.KEYDOWN\
-                       and event.key == pygame.K_p:
-                        PAUSE = not PAUSE
-                        print("<ACTION>")
-                        pass
-                    pass
-                pass
-        else:
-            pass
-    
-    DEV_INFO(DEV_MODE)
+    hotkey_actions(events)
+    dev_info(events)
 
     keypress = pygame.key.get_pressed()
 
+    # Transfer to handler?
     player.actions(keypress)
 
     # Game process.
 
     player_group.update(now)
     player_group.draw(screen)
-
-    enemy_group.update(now) # Transfer to 'MobHandle'?
-    enemy_group.draw(screen)
     
     MobHandler.refresh()
 
     player_bullets.refresh()
     enemy_bullets.refresh()
 
-    # Animation handle.
+    # Animation handle?-----------------
     for ani in animated_object_group:
         if ani.index >= ani.ani_len - 1:
             animated_object_group.remove(ani)
     animated_object_group.update(now)
     animated_object_group.draw(screen)
+    #-----------------------------------
 
     UI_group.draw(screen)
     UI_group.update(
         player
         )
+
 
     if DEV_MODE:
         color = cfg.color.black
@@ -1078,11 +1140,14 @@ while Run_flag:
         550,
         color=color
         )
+    if DEV_MODE:
+        draw_boxes()
 
-    # End of game process.
-
-    pygame.display.flip() # Update screen.
+    pygame.display.flip()
+    # End of game process.--------------------------------------------
+    pass
 
 # End of game loop.
-pygame.quit()
-sys.exit(0)
+if __name__ == '__main__':
+    pygame.quit()
+    sys.exit(0)

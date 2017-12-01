@@ -3,6 +3,17 @@ from collections import namedtuple
 
 import pygame
 
+import animation
+
+# Notes.--------------------------------------------------------------
+'''
+    1.Add penetratable bullets.
+    2.Add laser.
+'''
+#---------------------------------------------------------------------
+
+surface = None
+_initiated = False
 
 image_info = namedtuple(
     'Image_time',
@@ -13,10 +24,35 @@ image_info = namedtuple(
         ]
     )
 
+# Test.---------------------------------------------------------------
+def init(screen):
+    """Pass necessary objects into module."""
+    global surface
+    global _initiated
+    # To modify variables, use 'global' keyword.
+    
+    surface = screen
+    _initiated = True
+    return None
+
+def is_initiated() -> bool:
+    return _initiated
+# Test.---------------------------------------------------------------
+
+def _check_init(func):
+    '''Decorator checks module is initialized or not.'''
+    def wrapper(*args, **kwargs):
+        if not is_initiated():
+            raise RuntimeError("Module is not initiated.")
+        else:
+            pass
+        return func(*args, **kwargs)
+    return wrapper
+
 
 class Linear(pygame.sprite.Sprite):
     """Simple linear projectile.(progressing)"""
-
+    @_check_init
     def __init__(self,
                  *,
                  init_x=0,
@@ -29,9 +65,6 @@ class Linear(pygame.sprite.Sprite):
                  ):
         super(Linear, self).__init__()
 
-        # Remove when finished.
-        raise NotImplementedError("Progressing")
-
         animation.Core.__init__(
             self,
             image_struct=image
@@ -40,6 +73,7 @@ class Linear(pygame.sprite.Sprite):
         now = pygame.time.get_ticks()
 
         self.dmg = dmg
+        self.chargable = True
         self.shooter = shooter
 
         # Just taking place for future.
@@ -59,52 +93,49 @@ class Linear(pygame.sprite.Sprite):
 
         self.fps = 24
         self.last_draw = now
+        pass
 
     def update(self):
         if self.index is not None:
             elapsed_time = current_time - self.last_draw
             if elapsed_time > self.fps**-1 * 1000:
                 self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
+                ani_rect = self.animation_list[self.index % self.ani_len]
                 self.image = self.master_image.subsurface(ani_rect)
                 self.last_draw = current_time
+                pass
+            pass
         else:
             pygame.draw.rect(
-                screen,
+                surface,
                 (0, 255, 0, 255),
                 self.rect,
                 1
                 )
+            pass
+        
         if current_time - self.last_move > self.move_rate:
             self.rect.centery += self.y_speed * self.direct
             self.last_move = current_time
-
-        if DEV_MODE:
-            pygame.draw.rect(
-                    screen,
-                    (255, 0, 0, 255),
-                    self.rect.inflate(2, 2),
-                    1
-                    )
+            pass
         return
 
 
 class BulletHandle():
-
+    """Manage general actions of projectiles."""
+    @_check_init
     def __init__(self,
                  *,
                  shooter=None,
                  group=None,
                  target_group=None,
                  collide_coef=1,
-                 surface=None,
                  on_hit=None
                  ):
         self.shooter=shooter
         self.group = group
         self.target_group = target_group
         self.collide_coef = collide_coef
-        self.surface = surface
         self.surface_rect = surface.get_rect()
         
         self.on_hit = on_hit
@@ -117,7 +148,7 @@ class BulletHandle():
         now = pygame.time.get_ticks()
         
         self.group.update(now)
-        self.group.draw(self.surface)
+        self.group.draw(surface)
 
         for proj in self.group:
             if not self.surface_rect.contains(proj.rect):
@@ -138,7 +169,7 @@ class BulletHandle():
                 flash_w, flash_h = flash.image.get_rect().size
                 flash_pos = (pos_x - flash_w / 2), (pos_y - flash_h / 2)
 
-                self.surface.blit(flash.image, flash_pos)
+                surface.blit(flash.image, flash_pos)
         return
 
     def _ult_feedback(self, val=0):
