@@ -10,10 +10,9 @@ import config as cfg
 import animation
 import abilities
 
-# Pyden 0.36.1
+# Pyden 0.37.0
 
-# Note: Seperate hitbox frame drawing from every class.
-# Note: Seperate actions of player for further develope.
+# Note: Seperate actions from player for further develope.
 # Note: Rename config module?
 
 _zero = time.perf_counter() # Reference point.
@@ -39,6 +38,8 @@ clock = pygame.time.Clock()
 
 # F2: Switch DEV_MODE.
 # F3: Charge resource to full.
+# F4: Damage player for 50 points.
+# P: Pause game.
 
 # Init pygame and display.--------------------------------------------
 
@@ -62,7 +63,7 @@ assert abilities.is_initiated()
 if not os.path.exists('images'):
     try:
         os.chdir('src')
-    except OSError:
+    except FileNotFoundError:
         raise
 
 test_grid_dir = 'images/Checkered.png' # The 'transparent' grid.
@@ -121,15 +122,14 @@ def show_text(text: str,
 
 def transparent_image(
     w=50,
-    h=50
+    h=50,
+    color=(0, 0, 0, 0)
     ) -> pygame.Surface:
     surface = pygame.Surface(
         (w, h),
         pygame.SRCALPHA
         )
-    surface.fill(
-        (0, 0, 0, 0)
-        )
+    surface.fill(color)
     return surface
 
 # Classes.------------------------------------------------------------
@@ -152,16 +152,16 @@ class Resource():
         ]
     
     def __init__(self,
-                 *,
-                 name='NONE',
-                 init_val=100,
-                 max_val=100,
-                 charge_val=1,
-                 charge_speed=0.1,
-                 init_time=0,
-                 delay=False,
-                 delay_time=1
-                 ):
+                *,
+                name='NONE',
+                init_val=100,
+                max_val=100,
+                charge_val=1,
+                charge_speed=0.1,
+                init_time=0,
+                delay=False,
+                delay_time=1
+                ):
         self.name = name
         self.current_val = init_val
         self.max_val = max_val
@@ -278,8 +278,8 @@ If given a image, set 'w' and 'h' to the unit size of image,
             name='Charge',
             init_val=0,
             max_val=1000,
-            charge_val=3,
-            charge_speed=0.01,
+            charge_val=12,
+            charge_speed=0.06,
             init_time=now
             )
 
@@ -312,6 +312,9 @@ If given a image, set 'w' and 'h' to the unit size of image,
         # Set fps.
         self.fps = 24
         self.last_draw = now
+
+        self.ult_active = False
+        
         pass
 
     def actions(self, keypress):
@@ -336,12 +339,35 @@ If given a image, set 'w' and 'h' to the unit size of image,
             # Cast ult.
             if self.Ult.ratio == 1:
                 self.Ult._to_zero()
+
+        if keypress[pygame.K_u] and not self.ult_active:
+            if self.Ult.ratio == 1:
+                print("<Ultimate activated>")
+                self.ult_active = True
+
+        if keypress[pygame.K_u] \
+           and self.ult_active \
+           and (self.Ult.ratio != 0):
+            self._laser()
+            self.Ult.current_val -= 13
+        else:
+            if self.ult_active == True:
+                self.ult_active = False
+                print(
+                    "<Ultimate deactiveted, remaining energy: {u_ratio:.2f}%>".format(
+                        u_ratio=self.Ult.ratio * 100
+                        )
+                    )
+            else:
+                pass
         return
 
     def move(self, keypress):
         '''Move player according to keypress, using WASD keys.'''
+        rect = self.rect
         if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
-            self.rect.move_ip(0, -self.move_y_rate)
+##            self.rect.move_ip(0, -self.move_y_rate)
+            rect.move_ip(0, -self.move_y_rate) # This is OK.
         if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
             self.rect.move_ip(0, self.move_y_rate)
         if keypress[pygame.K_a] and self.rect.left > screen_rect.left:
@@ -361,29 +387,36 @@ If given a image, set 'w' and 'h' to the unit size of image,
             return
         
         # Default bullet for test.
-        image = pygame.Surface(
-            (5, 15)
-            )
-        image.fill(
-            (255, 255, 0) # yellow.
-            )
+        image = abilities.default_bullet(color=cfg.color.yellow)
         x, y = self.rect.midtop
-        w, h = image.get_rect().size
-        img = animation.loader(
-            image=image,
-            w=w,
-            h=h
-            )
         bullet = abilities.Linear(
             init_x=x + b_shift(),
             init_y=y - 8,
-            image=img,
+            image=image,
             speed=18,
             dmg=22,
             shooter=self
         )
         projectile_group.add(bullet)
-        return        
+        return
+
+    def _laser(self):
+        bottom = self.rect.top - 8
+        top = 0
+        w = 20
+        h = self.rect.top - 8
+        rect = pygame.Rect(
+            (self.rect.centerx - w/2, 0),
+            (w, h)
+            )
+        pygame.draw.rect(
+            screen,
+            (0, 255, 0),
+            rect
+            )
+        for enemy in enemy_group:
+            if rect.colliderect(enemy.rect):
+                enemy.Hp.current_val -= 10
 
     def update(self, current_time):
         # Is there a way to seperate?
@@ -432,7 +465,7 @@ class Mob(pygame.sprite.Sprite):
 
         self.Hp = Resource(
             name='Hp',
-            charge_val=1, # Will not recover over time.
+            charge_val=1, # if charge_val is zero, will not recover over time.
             delay=True,
             delay_time=1.5
             )
@@ -468,25 +501,13 @@ class Mob(pygame.sprite.Sprite):
             pass
         else:
             return
-        # Default bullet for test.
-        image = pygame.Surface(
-            (5, 15)
-            )
-        image.fill(
-            (255, 150, 0)
-            )
+        image = abilities.default_bullet(color=(255, 150, 0))
         x, y = self.rect.midbottom
-        w, h = image.get_rect().size
-        img = animation.loader(
-            image=image,
-            w=w,
-            h=h
-            )
         bullet = abilities.Linear(
             init_x=x+b_shift(),
             init_y=y+8,
             direct=1,
-            image=img,
+            image=image,
         )
         projectile_group.add(bullet)
         return
@@ -753,7 +774,7 @@ class AnimationHandle():
 # MobHandle.----------------------------------------------------------
 
 class MobHandle():
-
+    '''Managing group logics of Mob.'''
     def __init__(self,
                  *,
                  group=None,
@@ -859,6 +880,7 @@ class MobHandle():
 
 MobHandler = MobHandle(
     group=enemy_group,
+    max_amount=17
     )
 
 player_bullets = abilities.BulletHandle(

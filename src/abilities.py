@@ -10,7 +10,7 @@ import animation
     1.Add penetratable bullets.
     2.Add laser.
 '''
-#---------------------------------------------------------------------
+#--------------------------------------------------------------------
 
 surface = None
 _initiated = False
@@ -24,7 +24,7 @@ image_info = namedtuple(
         ]
     )
 
-# Test.---------------------------------------------------------------
+# Init.---------------------------------------------------------------
 def init(screen):
     """Pass necessary objects into module."""
     global surface
@@ -38,7 +38,7 @@ def init(screen):
 def is_initiated() -> bool:
     '''Return True if module is successfully initialized.'''
     return _initiated
-# Test.---------------------------------------------------------------
+# Init.---------------------------------------------------------------
 
 def _check_init(func):
     '''Decorator checks module is initialized or not.'''
@@ -49,6 +49,25 @@ def _check_init(func):
             pass
         return func(*args, **kwargs)
     return wrapper
+
+def default_bullet(
+    size=(5, 15),
+    color=(255, 255, 0)
+    ):
+    """Create default bullet image."""
+    image = pygame.Surface(size)
+    image.fill(color) # yellow.
+    w, h = image.get_rect().size
+    image = animation.loader(
+        image=image,
+        w=w,
+        h=h
+        )
+    return image
+
+
+class Penetratable(pygame.sprite.Sprite):
+    pass
 
 
 class Linear(pygame.sprite.Sprite):
@@ -74,6 +93,7 @@ class Linear(pygame.sprite.Sprite):
         now = pygame.time.get_ticks()
 
         self.dmg = dmg
+        self.cooldown = 12**-1 * 1000
         self.chargable = True
         self.shooter = shooter
 
@@ -96,15 +116,14 @@ class Linear(pygame.sprite.Sprite):
         self.last_draw = now
         pass
 
-    def update(self):
-        now = pygame.time.get_ticks()
+    def update(self, current_time):
         if self.index is not None:
-            elapsed_time = now - self.last_draw
+            elapsed_time = current_time - self.last_draw
             if elapsed_time > self.fps**-1 * 1000:
                 self.index += 1
                 ani_rect = self.animation_list[self.index % self.ani_len]
                 self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = now
+                self.last_draw = current_time
                 pass
             pass
         else:
@@ -116,9 +135,9 @@ class Linear(pygame.sprite.Sprite):
                 )
             pass
         
-        if now - self.last_move > self.move_rate:
+        if current_time - self.last_move > self.move_rate:
             self.rect.centery += self.speed_y * self.direct
-            self.last_move = now
+            self.last_move = current_time
             pass
         return
 
@@ -149,7 +168,7 @@ class BulletHandle():
         ratio = self.collide_coef
         now = pygame.time.get_ticks()
         
-        self.group.update()
+        self.group.update(now)
         self.group.draw(surface)
 
         for proj in self.group:
