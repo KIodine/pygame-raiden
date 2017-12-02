@@ -48,6 +48,8 @@ class Core():
 Takes 'img_struct', resolve into frame list.
 Cannot use independent, must initialize explictly.
 '''
+    fps = 24
+    played = False
     def __init__(self,
                  *,
                  image_struct=None,
@@ -81,3 +83,16 @@ Cannot use independent, must initialize explictly.
             raise TypeError(
                 f"Expecting 'image_struct' type, got {image}."
                 )
+
+    def to_next_frame(self, current_time):
+        if self.index is not None:
+            elapsed_time = current_time - self.last_draw
+            if elapsed_time > self.fps**-1 * 1000:
+                self.index += 1
+                ani_rect = self.animation_list[self.index%self.ani_len]
+                self.image = self.master_image.subsurface(ani_rect)
+                self.last_draw = current_time
+            if not self.played:
+                if self.index >= (self.ani_len - 1):
+                    self.played = True
+        raise NotImplementedError

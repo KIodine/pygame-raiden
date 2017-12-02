@@ -3,6 +3,7 @@ import os
 import random
 import math
 import time
+from collections import deque, namedtuple
 
 import pygame
 
@@ -325,11 +326,11 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
         self.move(keypress)
 
-        if keypress[pygame.K_j]:
+        if keypress[pygame.K_j] and not self.ult_active:
             # Cast normal attack.
             self._create_bullet(projectile_group)
 
-        if keypress[pygame.K_k]:
+        if keypress[pygame.K_k] and not self.ult_active:
             # Cast charged skill.
             ratio = self.Charge.ratio
             if self.Charge.ratio == 1:
@@ -358,8 +359,6 @@ If given a image, set 'w' and 'h' to the unit size of image,
                         u_ratio=self.Ult.ratio * 100
                         )
                     )
-            else:
-                pass
         return
 
     def move(self, keypress):
@@ -417,6 +416,9 @@ If given a image, set 'w' and 'h' to the unit size of image,
         for enemy in enemy_group:
             if rect.colliderect(enemy.rect):
                 enemy.Hp.current_val -= 10
+        for host_proj in hostile_projectile_group:
+            if rect.colliderect(host_proj):
+                hostile_projectile_group.remove(host_proj)
 
     def update(self, current_time):
         # Is there a way to seperate?
@@ -566,13 +568,12 @@ class Animated_object(pygame.sprite.Sprite):
                 self.rect,
                 1
                 )
-            pass
-        pass
+        return
 
 
 # Skill_panel.--------------------------------------------------------
 
-class Skill_panel(pygame.sprite.Sprite):
+class Indicator(pygame.sprite.Sprite):
     '''Skill charge instructor.'''
     def __init__(self,
                  *,
@@ -581,18 +582,21 @@ class Skill_panel(pygame.sprite.Sprite):
                  border_expand=25,
                  arc_color=(47, 89, 158, 190),
                  rim_color=(0, 255, 255, 215),
+                 sprite=None,
                  resource_name='',
                  image=None
                  ):
-
-        self.resource_name = resource_name
-        
-        super(Skill_panel, self).__init__()
+        super(Indicator, self).__init__()
 
         animation.Core.__init__(
             self,
             image_struct=image
             )
+
+        if not sprite:
+            raise ValueError("No sprite being monitoring.")
+        self.resource_name = resource_name
+        self.sprite = sprite
 
         self.rect.topleft = x_pos, y_pos
 
@@ -600,17 +604,17 @@ class Skill_panel(pygame.sprite.Sprite):
         self.arc_color = arc_color
         self.rim_color = rim_color
 
-    def update(
-        self,
-        player: Character
-        ):
+    def update(self):
+        sprite = self.sprite
         
-        res = getattr(player, self.resource_name) 
+        res = getattr(sprite, self.resource_name) 
         current_val = res.current_val
         max_val = res.max_val
         
         ratio = res.ratio
-        self.outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
+        self.outer_rect = self.rect.inflate(
+            self.border_expand, self.border_expand
+            )
         
         surf = pygame.Surface(self.outer_rect.size, pygame.SRCALPHA)
         surf_rect = self.outer_rect.copy()
@@ -674,37 +678,40 @@ animated_object_group = pygame.sprite.Group()
 
 blank100 = animation.loader(w=100, h=100)
 
-charge = Skill_panel(
+charge = Indicator(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=80,
     resource_name='Ult',
+    sprite=player,
     image=blank100
     )
 
 blank75 = animation.loader(w=75, h=75)
 
-charge2 = Skill_panel(
+charge2 = Indicator(
     x_pos=screen_rect.w-350,
     y_pos=screen_rect.h-110,
     border_expand=50,
     resource_name='Charge',
+    sprite=player,
     image=blank75
     )
 
 blank80 = animation.loader(w=80, h=80)
 
-HP_monitor = Skill_panel(
+HP_monitor = Indicator(
     x_pos=60,
     y_pos=515,
     border_expand=50,
     resource_name='Hp',
     arc_color=(25, 221, 0, 240),
+    sprite=player,
     image=blank80
     )
 
-UI_group = pygame.sprite.Group()
-UI_group.add(
+HUD_group = pygame.sprite.Group()
+HUD_group.add(
     charge,
     charge2,
     HP_monitor
@@ -739,11 +746,11 @@ def draw_boxes():
         pass
     for proj in projectile_group:
         frame = pygame.draw.rect(
-                screen,
-                (255, 0, 0),
-                proj.rect.inflate(2, 2),
-                1
-                )
+            screen,
+            (255, 0, 0),
+            proj.rect.inflate(2, 2),
+            1
+            )
         pass
     for eff in animated_object_group:
         frame = pygame.draw.rect(
@@ -753,7 +760,7 @@ def draw_boxes():
             1
             )
         pass
-    for ui in UI_group:
+    for ui in HUD_group:
         frame = pygame.draw.rect(
             screen,
             (0, 255, 0, 255),
@@ -767,8 +774,84 @@ def draw_boxes():
 
 class AnimationHandle():
     '''Not implemented.'''
-    def __init__(self):
-        raise NotImplementedError("Not implemented yet.")
+    def __init__(self,
+                 *,
+                 group=None,
+                 ):
+        self.group = group
+        self.draw_queue = list()
+        self.draw_multi_delay = 0.1 * 1000
+        self.last_draw_multi = pygame.time.get_ticks()
+        self.timestamped = namedtuple(
+            'Stamped_Frame',
+            [
+                'timestamp',
+                'frame'
+                ]
+            )
+
+    def draw_explode(
+        self,
+        *,
+        x=0,
+        y=0
+        ):
+        eff = Animated_object(
+            init_x=x,
+            init_y=y,
+            image=explode
+            )
+        self.group.add(eff)
+        return
+
+    def draw_multiple_explode(
+        self,
+        *,
+        x=0,
+        y=0,
+        diff=16,
+        num=5,
+        interval=0.08
+        ):
+        now = pygame.time.get_ticks()
+        diff_pos = lambda: random.randint(-diff, diff)
+        self.draw_multi_delay = interval * 1000
+        for i in range(num):
+            eff = Animated_object(
+                init_x=x+diff_pos(),
+                init_y=y+diff_pos(),
+                image=explode
+                )
+            pair = self.timestamped(
+                now + interval * 1000 * i, eff
+                )
+            self.draw_queue.append(pair)
+        return
+
+    def refresh(self):
+        now = pygame.time.get_ticks()
+        for ani in self.group:
+            if ani.index >= ani.ani_len - 1:
+                self.group.remove(ani)
+                
+        if (len(self.draw_queue) != 0):
+            # Issue: If many enemies die in a short time, this will cause
+            #   significant delay between each group of explode.
+            # Cause: This mechanism 'consumes' effects in the order they put in,
+            #   not the time they should be played.
+            # Possible solution: Add 'play_after' or similar tag to each effect,
+            #   sort by their time.(explode, timestamp) pair.
+            # Status: Found @ 171203; Solved @ 171203.
+            self.draw_queue.sort(
+                key=lambda x: x.timestamp
+                )
+            if self.draw_queue[0].timestamp < now:
+                self.group.add(self.draw_queue.pop(0).frame)
+            
+        self.group.update(now)
+        self.group.draw(screen)
+        return
+                              
 
 
 # MobHandle.----------------------------------------------------------
@@ -858,6 +941,13 @@ class MobHandle():
                 # Dead animation.
                 # Target: random shift, with spawn interval.(other handle?)
                 x, y = hostile.rect.center
+                # Test.-------------------------------------
+                # Bad coupling, need to solve.
+                AnimationHandler.draw_multiple_explode(
+                    x=x,
+                    y=y
+                    )
+                # Test.-------------------------------------
                 animated_object_group.add(
                     Animated_object(
                         init_x=x,
@@ -877,6 +967,10 @@ class MobHandle():
                 # Play shooting sound here.
 
 # Instance.-----------------------------------------------------------
+
+AnimationHandler = AnimationHandle(
+    group=animated_object_group
+    )
 
 MobHandler = MobHandle(
     group=enemy_group,
@@ -1065,30 +1159,28 @@ while RUN_FLAG:
     dev_info(events)
     #-----------------------------------
     keypress = pygame.key.get_pressed()
-
-    # Transfer to handler?
-    player.actions(keypress)
-
-    player_group.update(now)
-    player_group.draw(screen)
     
     MobHandler.refresh()
 
     player_bullets.refresh()
     enemy_bullets.refresh()
 
+    # Transfer to handler?
+    player.actions(keypress)
+    player_group.update(now)
+    player_group.draw(screen)
+
+    AnimationHandler.refresh()
     # Animation handle?-----------------
-    for ani in animated_object_group:
-        if ani.index >= ani.ani_len - 1:
-            animated_object_group.remove(ani)
-    animated_object_group.update(now)
-    animated_object_group.draw(screen)
+##    for ani in animated_object_group:
+##        if ani.index >= ani.ani_len - 1:
+##            animated_object_group.remove(ani)
+##    animated_object_group.update(now)
+##    animated_object_group.draw(screen)
     #-----------------------------------
 
-    UI_group.draw(screen)
-    UI_group.update(
-        player
-        )
+    HUD_group.draw(screen)
+    HUD_group.update()
 
 
     if DEV_MODE:
@@ -1107,8 +1199,8 @@ while RUN_FLAG:
     pygame.display.flip()
     # End of game process.--------------------------------------------
     pass
+# End of game loop.---------------------------------------------------
 
-# End of game loop.
 if __name__ == '__main__':
     pygame.quit()
     sys.exit(0)
