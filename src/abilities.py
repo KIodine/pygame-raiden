@@ -73,16 +73,17 @@ class Penetratable(pygame.sprite.Sprite):
 class Linear(pygame.sprite.Sprite):
     """Simple linear projectile.(progressing)"""
     @_check_init
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 direct=-1,
-                 speed=10,
-                 dmg=20,
-                 shooter=None,
-                 image=None
-                 ):
+    def __init__(
+            self,
+            *,
+            init_x=0,
+            init_y=0,
+            direct=-1,
+            speed=10,
+            dmg=20,
+            shooter=None,
+            image=None
+        ):
         super(Linear, self).__init__()
 
         animation.Core.__init__(
@@ -145,20 +146,21 @@ class Linear(pygame.sprite.Sprite):
 class BulletHandle():
     """Manage general actions of projectiles."""
     @_check_init
-    def __init__(self,
-                 *,
-                 shooter=None,
-                 group=None,
-                 target_group=None,
-                 collide_coef=1,
-                 on_hit=None
-                 ):
-        self.shooter=shooter
+    def __init__(
+            self,
+            *,
+            shooter=None,
+            group=None,
+            target_group=None,
+            collide_coef=1,
+            on_hit=None
+        ):
+        self.shooter = shooter
         self.group = group
         self.target_group = target_group
         self.collide_coef = collide_coef
         self.surface_rect = surface.get_rect()
-        
+
         self.on_hit = on_hit
         self._on_hit_list = []
         self._on_hit_interval = 0.015
@@ -167,7 +169,7 @@ class BulletHandle():
         flash = self.on_hit
         ratio = self.collide_coef
         now = pygame.time.get_ticks()
-        
+
         self.group.update(now)
         self.group.draw(surface)
 
@@ -198,6 +200,7 @@ class BulletHandle():
         if shooter is None:
             return
         else:
-            if hasattr(shooter, 'Ult'):
-                shooter.Ult.charge(val)
+            if hasattr(shooter, 'ult'):
+                shooter.ult.charge(val)
+                # shooter.Ult.charge(val)
         return

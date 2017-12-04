@@ -10,8 +10,9 @@ import pygame
 import config as cfg
 import animation
 import abilities
+import resource
 
-# Pyden 0.37.0
+# Pyden 0.38.0
 
 # Note: Seperate actions from player for further develope.
 # Note: Rename config module?
@@ -62,6 +63,7 @@ assert abilities.is_initiated()
 # Load resources.-----------------------------------------------------
 
 if not os.path.exists('images'):
+    # A vscode issue.
     try:
         os.chdir('src')
     except FileNotFoundError:
@@ -104,12 +106,13 @@ flash = animation.loader(
 
 # Functions.----------------------------------------------------------
 
-def show_text(text: str,
-              x,
-              y,
-              font=msjh_16,
-              color=cfg.color.white
-              ):
+def show_text(
+        text: str,
+        x,
+        y,
+        font=msjh_16,
+        color=cfg.color.white
+    ):
     '''Display text on x, y.'''
     if not isinstance(text, str):
         try:
@@ -118,13 +121,12 @@ def show_text(text: str,
             raise
     rendered_text = font.render(text, True, color)
     screen.blit(rendered_text, (x, y))
-    
     return None
 
 def transparent_image(
-    w=50,
-    h=50,
-    color=(0, 0, 0, 0)
+        w=50,
+        h=50,
+        color=(0, 0, 0, 0)
     ) -> pygame.Surface:
     surface = pygame.Surface(
         (w, h),
@@ -136,126 +138,21 @@ def transparent_image(
 # Classes.------------------------------------------------------------
 
 # Note: Use magic method or add a 'add' function?
-
-class Resource():
-    '''Resource container and manager.'''
-    # Fixed data structure.
-    __slots__ = [
-        'name',
-        'current_val',
-        'max_val',
-        'charge_val',
-        'charge_speed',
-        'last_charge',
-        'delay',
-        'delay_time',
-        'last_val'
-        ]
-    
-    def __init__(self,
-                *,
-                name='NONE',
-                init_val=100,
-                max_val=100,
-                charge_val=1,
-                charge_speed=0.1,
-                init_time=0,
-                delay=False,
-                delay_time=1
-                ):
-        self.name = name
-        self.current_val = init_val
-        self.max_val = max_val
-        self.charge_val = charge_val
-        self.charge_speed=charge_speed
-        self.last_charge = init_time
-        
-        self.delay = delay
-        self.delay_time = delay_time
-        self.last_val = init_val
-        pass
-
-    def __repr__(self):
-        s = "<{name}: {current_val}/{max_val} ({ratio:.1f}%)>"
-        return s.format(
-            name=self.name,
-            max_val=int(self.max_val),
-            current_val=int(self.current_val),
-            ratio=self.ratio*100
-            )
-
-    def recover(self, current_time):
-        '''Recover resource over time.'''
-        # The main method.
-        def is_available():
-            permission = False
-            # Short-circuit, if 'delay' is 'False', it won't eval the rear code.
-            if self.delay and self.last_val != self.current_val:
-                self.last_charge = current_time
-                # Reset last charge time(this is important).
-                self.last_charge += self.delay_time * 1000
-                self.last_val = self.current_val
-                
-            elapsed_time = current_time - self.last_charge
-            if elapsed_time > self.charge_speed * 1000\
-               and self.current_val < self.max_val:
-                permission = True
-            return permission
-        
-        if is_available():
-            self.last_charge = current_time
-            self.current_val += self.charge_val
-            self._over_charge_check()
-            self.last_val = self.current_val
-        # Limit the minimum val to zero.
-        if self.current_val < 0: self.current_val = 0
-        return
-
-    def charge(self, val=0):
-        '''Charge resource with 'val'.'''
-        if self.ratio < 1:
-            self.current_val += val
-            self._over_charge_check()
-            pass
-        return
-
-    @property
-    def ratio(self):
-        c_val = self.current_val
-        if c_val < 0: c_val = 0
-        return c_val/self.max_val
-
-    def _to_zero(self):
-        '''Reduce resource to zero.'''
-        self.current_val = 0
-        return
-
-    def _to_max(self):
-        '''Charge resource to its maximum value.'''
-        self.current_val = self.max_val
-        return
-
-    def _over_charge_check(self):
-        '''If current_val exceeds max_val, set it to max_val.'''
-        if self.current_val > self.max_val:
-            self.current_val = self.max_val
-        return
-
+# Note: (Done)Considering seperate 'Resource' class to individual module.
 
 # Character.----------------------------------------------------------
 
-class Character(pygame.sprite.Sprite):
-    
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 image=None
-                 ):
-        '''\
-If given a image, set 'w' and 'h' to the unit size of image,
-'col' and 'row' for frames.\
-'''
+class Character(
+        pygame.sprite.Sprite,
+    ):
+    '''Create player character for manipulation.'''
+    def __init__(
+            self,
+            *,
+            init_x=0,
+            init_y=0,
+            image=None
+        ):
         # Must be explictly.
         super(Character, self).__init__()
 
@@ -264,49 +161,30 @@ If given a image, set 'w' and 'h' to the unit size of image,
             image_struct=image
             )
 
+        now = pygame.time.get_ticks()
+
         self.rect.center = init_x, init_y
 
         self.move_x_rate = 6
         self.move_y_rate = 6
 
-        now = pygame.time.get_ticks() # Get current time.
-
         self.fire_rate = 12
         self.last_fire = now
 
-        # Set charge attr.
-        self.Charge = Resource(
-            name='Charge',
-            init_val=0,
-            max_val=1000,
-            charge_val=12,
-            charge_speed=0.06,
+        # ------------------------------------------------------------
+        self.Hp = resource.default_player_hp(
             init_time=now
-            )
-
-        self.Ult = Resource(
-            name='Ultimate',
-            init_val=0,
-            max_val=2000,
-            charge_val=3,
-            charge_speed=0.1,
+        )
+        self.Charge = resource.default_player_charge(
             init_time=now
-            )
-
-        self.Hp = Resource(
-            name='Health',
-            init_val=100,
-            max_val=100,
-            charge_val=0.6,
-            charge_speed=0.02,
-            init_time=now,
-            delay=True,
-            delay_time=2
-            )
-
+        )
+        self.ult = resource.default_player_ultimate(
+            init_time=now
+        )
+        # ------------------------------------------------------------
         self._resource_list = [
             self.Charge,
-            self.Ult,
+            self.ult,
             self.Hp
             ]
 
@@ -315,7 +193,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         self.last_draw = now
 
         self.ult_active = False
-        
+
         pass
 
     def actions(self, keypress):
@@ -334,31 +212,75 @@ If given a image, set 'w' and 'h' to the unit size of image,
             # Cast charged skill.
             ratio = self.Charge.ratio
             if self.Charge.ratio == 1:
-                self.Charge._to_zero()
+                # ----------------------------------------------------
+                # Issue: The beam stays too short on screen.
+                rect = self.rect
+                w = 5
+                h = rect.top
+                x = rect.centerx - w / 2
+                y = 0
+                check_rect = pygame.Rect(
+                    (x, y), (w, h)
+                    )
+                collide_list = [
+                    sprite for sprite in enemy_group
+                    if check_rect.colliderect(sprite.rect)
+                    ]
+                if collide_list:
+                    collide_list.sort(
+                        key=lambda sprite: sprite.rect.centery - rect.centery,
+                        reverse=True
+                        )
+                    hit = collide_list[0]
+                    top = hit.rect.bottom
+                    eff_bar = pygame.Rect(
+                        (x, top), (w, h - top)
+                        )
+                    pygame.draw.rect(
+                        screen,
+                        (255, 128, 0),
+                        eff_bar
+                        )
+                    AnimationHandler.draw_single(
+                        x=eff_bar.centerx,
+                        y=eff_bar.top,
+                        image=flash
+                        )
+                    hit.Hp.current_val -= 120
+                    # Only when the skill hits enemy then energy consume.
+                    self.Charge._to_zero()
+                    self.ult.charge(120)
+                else:
+                    pass
+                # ----------------------------------------------------
+
 
         if keypress[pygame.K_l]:
-            # Cast ult.
-            if self.Ult.ratio == 1:
-                self.Ult._to_zero()
+            # (Replaced)Cast ult.
+            if self.ult.ratio == 1:
+                self.ult._to_zero()
 
+        # Ultimate.---------------------------------------------------
         if keypress[pygame.K_u] and not self.ult_active:
-            if self.Ult.ratio == 1:
+            if self.ult.ratio == 1:
                 print("<Ultimate activated>")
                 self.ult_active = True
 
         if keypress[pygame.K_u] \
            and self.ult_active \
-           and (self.Ult.ratio != 0):
+           and (self.ult.ratio != 0):
             self._laser()
-            self.Ult.current_val -= 13
+            self.ult.current_val -= 13
         else:
             if self.ult_active == True:
                 self.ult_active = False
-                print(
-                    "<Ultimate deactiveted, remaining energy: {u_ratio:.2f}%>".format(
-                        u_ratio=self.Ult.ratio * 100
+                print((
+                    "<Ultimate deactiveted,"
+                    " remaining energy: {u_ratio:.2f}%>".format(
+                        u_ratio=self.ult.ratio * 100
                         )
-                    )
+                    ))
+        # ------------------------------------------------------------
         return
 
     def move(self, keypress):
@@ -374,17 +296,17 @@ If given a image, set 'w' and 'h' to the unit size of image,
         if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
             self.rect.move_ip(self.move_x_rate, 0)
         return
-    
+
     def _create_bullet(self, projectile_group):
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
-        
+
         if now - self.last_fire > self.fire_rate**-1 * 1000:
             self.last_fire = now
             pass
         else:
             return
-        
+
         # Default bullet for test.
         image = abilities.default_bullet(color=cfg.color.yellow)
         x, y = self.rect.midtop
@@ -419,6 +341,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
         for host_proj in hostile_projectile_group:
             if rect.colliderect(host_proj):
                 hostile_projectile_group.remove(host_proj)
+        return
 
     def update(self, current_time):
         # Is there a way to seperate?
@@ -431,7 +354,7 @@ If given a image, set 'w' and 'h' to the unit size of image,
                 self.last_draw = current_time
                 pass
             pass
-        
+
         for res in self._resource_list:
             res.recover(current_time)
             pass
@@ -442,12 +365,13 @@ If given a image, set 'w' and 'h' to the unit size of image,
 
 class Mob(pygame.sprite.Sprite):
     '''Create mob object that oppose to player.'''
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 image=None
-                 ):
+    def __init__(
+            self,
+            *,
+            init_x=0,
+            init_y=0,
+            image=None
+        ):
         super(Mob, self).__init__()
 
         animation.Core.__init__(
@@ -465,13 +389,12 @@ class Mob(pygame.sprite.Sprite):
         self.fire_rate = 1
         self.last_fire = now
 
-        self.Hp = Resource(
-            name='Hp',
-            charge_val=1, # if charge_val is zero, will not recover over time.
-            delay=True,
-            delay_time=1.5
-            )
-
+        # ------------------------------------------------------------
+        # (todo)Use functool.partial to create default setting.
+        self.Hp = resource.default_enemy_hp(
+            init_time=now
+        )
+        # ------------------------------------------------------------
         self._resource_list = [
             self.Hp
             ]
@@ -534,12 +457,13 @@ class Mob(pygame.sprite.Sprite):
 
 class Animated_object(pygame.sprite.Sprite):
 
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 image=None
-                 ):
+    def __init__(
+            self,
+            *,
+            init_x=0,
+            init_y=0,
+            image=None
+        ):
 
         super(Animated_object, self).__init__()
 
@@ -571,21 +495,22 @@ class Animated_object(pygame.sprite.Sprite):
         return
 
 
-# Skill_panel.--------------------------------------------------------
+# Indicator.----------------------------------------------------------
 
 class Indicator(pygame.sprite.Sprite):
     '''Skill charge instructor.'''
-    def __init__(self,
-                 *,
-                 x_pos=0,
-                 y_pos=0,
-                 border_expand=25,
-                 arc_color=(47, 89, 158, 190),
-                 rim_color=(0, 255, 255, 215),
-                 sprite=None,
-                 resource_name='',
-                 image=None
-                 ):
+    def __init__(
+            self,
+            *,
+            x_pos=0,
+            y_pos=0,
+            border_expand=25,
+            arc_color=(47, 89, 158, 190),
+            rim_color=(0, 255, 255, 215),
+            sprite=None,
+            resource_name='',
+            image=None
+        ):
         super(Indicator, self).__init__()
 
         animation.Core.__init__(
@@ -605,6 +530,7 @@ class Indicator(pygame.sprite.Sprite):
         self.rim_color = rim_color
 
     def update(self):
+        # Note: Redesign HUD for better performing.-------------------
         sprite = self.sprite
         
         res = getattr(sprite, self.resource_name) 
@@ -682,7 +608,7 @@ charge = Indicator(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=80,
-    resource_name='Ult',
+    resource_name='ult',
     sprite=player,
     image=blank100
     )
@@ -773,11 +699,12 @@ def draw_boxes():
 # Handlers.-----------------------------------------------------------
 
 class AnimationHandle():
-    '''Not implemented.'''
-    def __init__(self,
-                 *,
-                 group=None,
-                 ):
+    '''Handle effects.'''
+    def __init__(
+            self,
+            *,
+            group=None,
+        ):
         self.group = group
         self.draw_queue = list()
         self.draw_multi_delay = 0.1 * 1000
@@ -791,10 +718,10 @@ class AnimationHandle():
             )
 
     def draw_explode(
-        self,
-        *,
-        x=0,
-        y=0
+            self,
+            *,
+            x=0,
+            y=0
         ):
         eff = Animated_object(
             init_x=x,
@@ -804,15 +731,36 @@ class AnimationHandle():
         self.group.add(eff)
         return
 
-    def draw_multiple_explode(
-        self,
-        *,
-        x=0,
-        y=0,
-        diff=16,
-        num=5,
-        interval=0.08
+    def draw_single(
+            self,
+            *,
+            x=0,
+            y=0,
+            image=None
         ):
+        eff = Animated_object(
+            init_x=x,
+            init_y=y,
+            image=image
+            )
+        self.group.add(eff)
+        return
+
+    def draw_multiple_explode(
+            self,
+            *,
+            x=0,
+            y=0,
+            diff=16,
+            num=5,
+            interval=0.08
+        ):
+        # Note.-------------------------------------------------------
+        # For decoupling, rename method to 'draw_multi_effects', add a
+        # 'image' param.
+        # ------------------------------------------------------------
+        if image is None:
+            return
         now = pygame.time.get_ticks()
         diff_pos = lambda: random.randint(-diff, diff)
         self.draw_multi_delay = interval * 1000
@@ -828,44 +776,78 @@ class AnimationHandle():
             self.draw_queue.append(pair)
         return
 
+    def draw_multi_effects(
+            self,
+            *,
+            x=0,
+            y=0,
+            image=None,
+            diff=16,
+            num=5,
+            interval=0.08
+        ):
+        if image is None:
+            return
+        now = pygame.time.get_ticks()
+        diff_pos = lambda: random.randint(-diff, diff)
+        self.draw_multi_delay = interval * 1000
+        for i in range(num):
+            eff = Animated_object(
+                init_x=x+diff_pos(),
+                init_y=y+diff_pos(),
+                image=image
+                )
+            pair = self.timestamped(
+                now + interval * 1000 * i, eff
+                )
+            self.draw_queue.append(pair)
+        return
+
     def refresh(self):
         now = pygame.time.get_ticks()
         for ani in self.group:
-            if ani.index >= ani.ani_len - 1:
+            # Clear animations that had played once.
+            # New:
+            # if ani.played >= 1:
+            #   remove ani from group
+            if ani.index > ani.ani_len - 1:
                 self.group.remove(ani)
-                
+
         if (len(self.draw_queue) != 0):
-            # Issue: If many enemies die in a short time, this will cause
+            # Issue.--------------------------------------------------
+            # Description: If many enemies die in a short time, this will cause
             #   significant delay between each group of explode.
             # Cause: This mechanism 'consumes' effects in the order they put in,
             #   not the time they should be played.
             # Possible solution: Add 'play_after' or similar tag to each effect,
             #   sort by their time.(explode, timestamp) pair.
             # Status: Found @ 171203; Solved @ 171203.
+            # --------------------------------------------------------
             self.draw_queue.sort(
                 key=lambda x: x.timestamp
                 )
             if self.draw_queue[0].timestamp < now:
                 self.group.add(self.draw_queue.pop(0).frame)
-            
+
         self.group.update(now)
         self.group.draw(screen)
         return
-                              
+
 
 
 # MobHandle.----------------------------------------------------------
 
 class MobHandle():
     '''Managing group logics of Mob.'''
-    def __init__(self,
-                 *,
-                 group=None,
-                 spawn_interval=1,
-                 max_amount=10
-                 ):
+    def __init__(
+            self,
+            *,
+            group=None,
+            spawn_interval=1,
+            max_amount=10
+        ):
         now = pygame.time.get_ticks()
-        
+
         self.next_spawn = now + spawn_interval * 1000
         self.group = group
         self.spawn_interval = spawn_interval * 1000
@@ -880,17 +862,17 @@ class MobHandle():
         #   'current_time' + 'spawn_interval'
 
         current_time = pygame.time.get_ticks()
-        
+
         self.group.update(current_time)
         self.group.draw(screen)
-        
+
         reset_next_spawn = lambda: current_time + self.spawn_interval
-        
+
         if self.group is None:
             return
         self._clear_deadbody(current_time)
         self._attack_random(5)
-        
+
         if len(self.group) < self.max_amount:
             if current_time > self.next_spawn:
                 self._spawn_random_pos()
@@ -898,15 +880,14 @@ class MobHandle():
         else:
             self.next_spawn = reset_next_spawn()
         return
-    
+
     def _spawn_random_pos(self):
-        
         # Add check(Psuedo code):
         #   if enemy.rect collides existing enemy:
         #     retry
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
         safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
-        
+
         enemy = Mob(
             init_x=safe_x_pos(),
             init_y=safe_y_pos(),
@@ -914,9 +895,9 @@ class MobHandle():
             )
         while True:
             if not pygame.sprite.spritecollide(
-                enemy,
-                self.group,
-                False
+                    enemy,
+                    self.group,
+                    False
                 ):
                 break
             else:
@@ -930,31 +911,24 @@ class MobHandle():
         '''Clear hostile that 'Hp' less/equal than zero.'''
         # Clear deadbody and play explosion.
         global KILL_COUNT
-        
+
         for hostile in self.group:
             if hostile.Hp.current_val <= 0:
                 self.group.remove(hostile)
 
                  # Not a good choice.
                 KILL_COUNT += 1
-                
-                # Dead animation.
-                # Target: random shift, with spawn interval.(other handle?)
+
                 x, y = hostile.rect.center
                 # Test.-------------------------------------
                 # Bad coupling, need to solve.
-                AnimationHandler.draw_multiple_explode(
+                # Solved @ 171203.
+                AnimationHandler.draw_multi_effects(
                     x=x,
-                    y=y
+                    y=y,
+                    image=explode
                     )
                 # Test.-------------------------------------
-                animated_object_group.add(
-                    Animated_object(
-                        init_x=x,
-                        init_y=y,
-                        image=explode
-                        )
-                    )
                 pass
             pass
         return
@@ -968,6 +942,7 @@ class MobHandle():
 
 # Instance.-----------------------------------------------------------
 
+# Transfer to seperate module?
 AnimationHandler = AnimationHandle(
     group=animated_object_group
     )
@@ -1007,25 +982,25 @@ def hotkey_actions(events):
     global DEV_MODE
     global PAUSE
     global RUN_FLAG
-    
+
     for event in events:
         if event.type == pygame.QUIT:
             # The 'X' button on righttop corner.
             RUN_FLAG = False
         elif event.type == pygame.KEYDOWN:
             key = event.key
-            
+
             if key == pygame.K_ESCAPE:
                 RUN_FLAG = False
                 print("<Exit by 'ESC' key>")
                 pass
-                
+
             if key == pygame.K_F2:
                 # Enable/disable develope mode.
                 DEV_MODE = not DEV_MODE
                 print(f"<DEV_MODE={DEV_MODE}>")
                 pass
-                
+
             if key == pygame.K_F3:
                 print("<Charge resource to max>")
                 for p_res in player._resource_list:
@@ -1036,7 +1011,7 @@ def hotkey_actions(events):
                         pass
                     pass
                 pass
-                        
+
             if key == pygame.K_F4:
                 player.Hp.current_val -= 50
                 pass
@@ -1076,7 +1051,7 @@ Catches 'player' and 'event' param in global and show.\
                 )
             pass
         return
-    
+
     def player_info():
         # Display character rect infos.
         if 'player' in globals():
@@ -1087,11 +1062,11 @@ Catches 'player' and 'event' param in global and show.\
                 color=cfg.color.black
                 )
             show_text(
-            player.Hp,
-            170,
-            490,
-            color=cfg.color.black
-            )
+                player.Hp,
+                170,
+                490,
+                color=cfg.color.black
+                )
             pass
         return
 
@@ -1129,7 +1104,7 @@ Catches 'player' and 'event' param in global and show.\
             color=cfg.color.red
             )
         return
-        
+
     if DEV_MODE:
         event_info()
         player_info()
@@ -1149,7 +1124,7 @@ while RUN_FLAG:
     else:
         screen.fill(BLACK)
     #-----------------------------------
-        
+
     events = pygame.event.get()
     # Little trick to preserve last result of 'event'.
     for event in events:
@@ -1159,7 +1134,7 @@ while RUN_FLAG:
     dev_info(events)
     #-----------------------------------
     keypress = pygame.key.get_pressed()
-    
+
     MobHandler.refresh()
 
     player_bullets.refresh()
@@ -1171,13 +1146,6 @@ while RUN_FLAG:
     player_group.draw(screen)
 
     AnimationHandler.refresh()
-    # Animation handle?-----------------
-##    for ani in animated_object_group:
-##        if ani.index >= ani.ani_len - 1:
-##            animated_object_group.remove(ani)
-##    animated_object_group.update(now)
-##    animated_object_group.draw(screen)
-    #-----------------------------------
 
     HUD_group.draw(screen)
     HUD_group.update()
