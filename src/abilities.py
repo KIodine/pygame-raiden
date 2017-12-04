@@ -30,7 +30,7 @@ def init(screen):
     global surface
     global _initiated
     # To modify variables, use 'global' keyword.
-    
+
     surface = screen
     _initiated = True
     return None
@@ -43,6 +43,7 @@ def is_initiated() -> bool:
 def _check_init(func):
     '''Decorator checks module is initialized or not.'''
     def wrapper(*args, **kwargs):
+        '''Takes params.'''
         if not is_initiated():
             raise RuntimeError("Module is not initiated.")
         else:
@@ -51,14 +52,14 @@ def _check_init(func):
     return wrapper
 
 def default_bullet(
-    size=(5, 15),
-    color=(255, 255, 0)
+        size=(5, 15),
+        color=(255, 255, 0)
     ):
     """Create default bullet image."""
     image = pygame.Surface(size)
     image.fill(color) # yellow.
     w, h = image.get_rect().size
-    image = animation.loader(
+    image = animation.sequential_loader(
         image=image,
         w=w,
         h=h
@@ -70,8 +71,11 @@ class Penetratable(pygame.sprite.Sprite):
     pass
 
 
-class Linear(pygame.sprite.Sprite):
-    """Simple linear projectile.(progressing)"""
+class Linear(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
+    """Simple linear projectile."""
     @_check_init
     def __init__(
             self,
@@ -84,11 +88,12 @@ class Linear(pygame.sprite.Sprite):
             shooter=None,
             image=None
         ):
-        super(Linear, self).__init__()
-
-        animation.Core.__init__(
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
             self,
-            image_struct=image
+            master=master,
+            frames=frames
             )
 
         now = pygame.time.get_ticks()
@@ -98,7 +103,7 @@ class Linear(pygame.sprite.Sprite):
         self.chargable = True
         self.shooter = shooter
 
-        # Just taking place for future.
+        # Just taking place for future.-------------------------------
         self.hit_count = 0
         self.hit_interval = 0.1
         self.hit_target = []
@@ -106,6 +111,7 @@ class Linear(pygame.sprite.Sprite):
         self.combo_count = 0
         self.combo_max = 0
         self.spawn_time = now
+        # ------------------------------------------------------------
 
         self.rect.center = init_x, init_y
         self.direct = direct
@@ -115,31 +121,28 @@ class Linear(pygame.sprite.Sprite):
 
         self.fps = 24
         self.last_draw = now
-        pass
 
     def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index % self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-                pass
-            pass
-        else:
-            pygame.draw.rect(
-                surface,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            pass
-        
+        self.to_next_frame(current_time)
+
+        # if self.index is not None:
+        #     elapsed_time = current_time - self.last_draw
+        #     if elapsed_time > self.fps**-1 * 1000:
+        #         self.index += 1
+        #         ani_rect = self.animation_list[self.index % self.ani_len]
+        #         self.image = self.master_image.subsurface(ani_rect)
+        #         self.last_draw = current_time
+        # else:
+        #     pygame.draw.rect(
+        #         surface,
+        #         (0, 255, 0, 255),
+        #         self.rect,
+        #         1
+        #         )
+
         if current_time - self.last_move > self.move_rate:
             self.rect.centery += self.speed_y * self.direct
             self.last_move = current_time
-            pass
         return
 
 
@@ -202,5 +205,4 @@ class BulletHandle():
         else:
             if hasattr(shooter, 'ult'):
                 shooter.ult.charge(val)
-                # shooter.Ult.charge(val)
         return

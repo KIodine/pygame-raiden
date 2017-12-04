@@ -12,7 +12,7 @@ import animation
 import abilities
 import resource
 
-# Pyden 0.38.0
+# Pyden 0.40.0
 
 # Note: Seperate actions from player for further develope.
 # Note: Rename config module?
@@ -73,15 +73,13 @@ test_grid_dir = 'images/Checkered.png' # The 'transparent' grid.
 test_grid = pygame.image.load(test_grid_dir).convert_alpha()
 test_grid_partial = test_grid.subsurface(screen_rect)
 
-explode_dir = 'images/stone.png'
-
-ufo_dir = 'images/ufo.gif'
-
-flash_dir = 'images/explosion1.png'
-
 msjh_dir = 'fonts/msjh.ttf'
 msjh_24 = pygame.font.Font(msjh_dir, 24)
 msjh_16 = pygame.font.Font(msjh_dir, 16)
+
+explode_dir = 'images/stone.png'
+ufo_dir = 'images/ufo.gif'
+flash_dir = 'images/explosion1.png'
 
 explode = animation.loader(
     image=explode_dir,
@@ -91,6 +89,14 @@ explode = animation.loader(
     row=5
     )
 
+new_explode = animation.sequential_loader(
+    image=explode_dir,
+    w=50,
+    h=50,
+    col=1,
+    row=5
+)
+
 ufo = animation.loader(
     image=ufo_dir,
     w=58,
@@ -98,11 +104,24 @@ ufo = animation.loader(
     col=12
     )
 
+new_ufo = animation.sequential_loader(
+    image=ufo_dir,
+    w=58,
+    h=34,
+    col=12
+)
+
 flash = animation.loader(
     image=flash_dir,
     w=15,
     h=15
     )
+
+new_flash = animation.sequential_loader(
+    image=flash_dir,
+    w=15,
+    h=15
+)
 
 # Functions.----------------------------------------------------------
 
@@ -137,13 +156,11 @@ def transparent_image(
 
 # Classes.------------------------------------------------------------
 
-# Note: Use magic method or add a 'add' function?
-# Note: (Done)Considering seperate 'Resource' class to individual module.
-
 # Character.----------------------------------------------------------
 
 class Character(
         pygame.sprite.Sprite,
+        animation.NewCore
     ):
     '''Create player character for manipulation.'''
     def __init__(
@@ -154,11 +171,13 @@ class Character(
             image=None
         ):
         # Must be explictly.
-        super(Character, self).__init__()
-
-        animation.Core.__init__(
+        master, frames = image
+        # Due to the need of initial params, initialize parent explictly.
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
             self,
-            image_struct=image
+            master=master,
+            frames=frames
             )
 
         now = pygame.time.get_ticks()
@@ -187,14 +206,11 @@ class Character(
             self.ult,
             self.Hp
             ]
-
-        # Set fps.
+        # Overwritting attrs from 'NewCore'---------------------------
         self.fps = 24
         self.last_draw = now
-
+        # ------------------------------------------------------------
         self.ult_active = False
-
-        pass
 
     def actions(self, keypress):
         # Move: W A S D.
@@ -244,7 +260,7 @@ class Character(
                     AnimationHandler.draw_single(
                         x=eff_bar.centerx,
                         y=eff_bar.top,
-                        image=flash
+                        image=new_flash
                         )
                     hit.Hp.current_val -= 120
                     # Only when the skill hits enemy then energy consume.
@@ -287,7 +303,6 @@ class Character(
         '''Move player according to keypress, using WASD keys.'''
         rect = self.rect
         if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
-##            self.rect.move_ip(0, -self.move_y_rate)
             rect.move_ip(0, -self.move_y_rate) # This is OK.
         if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
             self.rect.move_ip(0, self.move_y_rate)
@@ -344,26 +359,22 @@ class Character(
         return
 
     def update(self, current_time):
-        # Is there a way to seperate?
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-                pass
-            pass
+        '''Push character to next status.'''
+        # Inheritate from 'animation.NewCore'.
+        self.to_next_frame(current_time)
 
         for res in self._resource_list:
             res.recover(current_time)
-            pass
-        pass
+
+        return
 
 
 # Mob.----------------------------------------------------------------
 
-class Mob(pygame.sprite.Sprite):
+class Mob(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
     '''Create mob object that oppose to player.'''
     def __init__(
             self,
@@ -372,11 +383,12 @@ class Mob(pygame.sprite.Sprite):
             init_y=0,
             image=None
         ):
-        super(Mob, self).__init__()
-
-        animation.Core.__init__(
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
             self,
-            image_struct=image
+            master=master,
+            frames=frames
             )
 
         self.rect.center = init_x, init_y
@@ -390,7 +402,6 @@ class Mob(pygame.sprite.Sprite):
         self.last_fire = now
 
         # ------------------------------------------------------------
-        # (todo)Use functool.partial to create default setting.
         self.Hp = resource.default_enemy_hp(
             init_time=now
         )
@@ -438,25 +449,20 @@ class Mob(pygame.sprite.Sprite):
         return
 
     def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-                
+        self.to_next_frame(current_time)
         for res in self._resource_list:
             res.recover(current_time)
-
         self._draw_hpbar()
         pass
 
 
 # Animated_object.----------------------------------------------------
 
-class Animated_object(pygame.sprite.Sprite):
-
+class Animated_object(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
+    '''Building pure effect with image.'''
     def __init__(
             self,
             *,
@@ -464,12 +470,12 @@ class Animated_object(pygame.sprite.Sprite):
             init_y=0,
             image=None
         ):
-
-        super(Animated_object, self).__init__()
-
-        animation.Core.__init__(
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
             self,
-            image_struct=image
+            master=master,
+            frames=frames
             )
 
         self.rect.center = init_x, init_y
@@ -478,20 +484,7 @@ class Animated_object(pygame.sprite.Sprite):
         self.last_draw = pygame.time.get_ticks()
 
     def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-        else:
-            pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
+        self.to_next_frame(current_time)
         return
 
 
@@ -577,7 +570,7 @@ class Indicator(pygame.sprite.Sprite):
 player = Character(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery + 100,
-    image=ufo
+    image=new_ufo
     )
 
 player_group = pygame.sprite.Group()
@@ -586,7 +579,7 @@ player_group.add(player)
 enemy = Mob(
     init_x=screen_rect.centerx - 100,
     init_y=screen_rect.centery,
-    image=ufo
+    image=new_ufo
     )
 
 enemy_group = pygame.sprite.Group()
@@ -726,7 +719,7 @@ class AnimationHandle():
         eff = Animated_object(
             init_x=x,
             init_y=y,
-            image=explode
+            image=new_explode
             )
         self.group.add(eff)
         return
@@ -768,7 +761,7 @@ class AnimationHandle():
             eff = Animated_object(
                 init_x=x+diff_pos(),
                 init_y=y+diff_pos(),
-                image=explode
+                image=new_explode
                 )
             pair = self.timestamped(
                 now + interval * 1000 * i, eff
@@ -801,6 +794,10 @@ class AnimationHandle():
                 now + interval * 1000 * i, eff
                 )
             self.draw_queue.append(pair)
+            # Sort draw order when inserting new effects.
+            self.draw_queue.sort(
+                key=lambda x: x.timestamp
+                )
         return
 
     def refresh(self):
@@ -810,7 +807,7 @@ class AnimationHandle():
             # New:
             # if ani.played >= 1:
             #   remove ani from group
-            if ani.index > ani.ani_len - 1:
+            if ani.played >= 1:
                 self.group.remove(ani)
 
         if (len(self.draw_queue) != 0):
@@ -823,17 +820,11 @@ class AnimationHandle():
             #   sort by their time.(explode, timestamp) pair.
             # Status: Found @ 171203; Solved @ 171203.
             # --------------------------------------------------------
-            self.draw_queue.sort(
-                key=lambda x: x.timestamp
-                )
             if self.draw_queue[0].timestamp < now:
                 self.group.add(self.draw_queue.pop(0).frame)
-
         self.group.update(now)
         self.group.draw(screen)
         return
-
-
 
 # MobHandle.----------------------------------------------------------
 
@@ -891,7 +882,7 @@ class MobHandle():
         enemy = Mob(
             init_x=safe_x_pos(),
             init_y=safe_y_pos(),
-            image=ufo
+            image=new_ufo
             )
         while True:
             if not pygame.sprite.spritecollide(
@@ -926,7 +917,7 @@ class MobHandle():
                 AnimationHandler.draw_multi_effects(
                     x=x,
                     y=y,
-                    image=explode
+                    image=new_explode
                     )
                 # Test.-------------------------------------
                 pass
@@ -1114,7 +1105,6 @@ Catches 'player' and 'event' param in global and show.\
     return
 
 # Main phase.---------------------------------------------------------
-
 while RUN_FLAG:
     clock.tick(FPS)
     now = pygame.time.get_ticks()
@@ -1149,7 +1139,6 @@ while RUN_FLAG:
 
     HUD_group.draw(screen)
     HUD_group.update()
-
 
     if DEV_MODE:
         color = cfg.color.black

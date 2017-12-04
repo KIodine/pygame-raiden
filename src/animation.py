@@ -1,5 +1,4 @@
 import os
-from functools import wraps
 from collections import namedtuple
 
 import pygame
@@ -54,7 +53,9 @@ def sequential_loader(
         col=1,
         row=1
     ) -> tuple:
-    '''Takes Surface object, return resolved tuple of image.'''
+    '''Takes Surface object, return master_image and resolved tuple of image.'''
+    # Resolve logics is the same as 'Core'.
+    # Return master_image and subsurfaces tuple.
     if image is None:
          # Draw a green frame and return.
         surf = pygame.Surface(
@@ -68,7 +69,11 @@ def sequential_loader(
             (0, 0, 50, 50),
             1
         )
-        return tuple([surf])
+        return image, tuple([surf])
+    elif isinstance(image, pygame.Surface):
+        pass
+    elif os.path.exists(image) and os.path.isfile(image):
+        image = pygame.image.load(image).convert_alpha()
     master_image = image
     animation_list = []
     for i in range(row):
@@ -76,14 +81,11 @@ def sequential_loader(
             frame = pygame.Rect(
                 (init_x + (j * w), init_y + (i * h)),
                 (w, h)
-            )
+                )
             animation_list.append(
                 master_image.subsurface(frame)
                 )
-    # Resolve logics is the same as 'Core'.
-    # Problaly same as old loader.
-    # Return subsurfaces tuple, simplify loading process.
-    return tuple(animation_list)
+    return master_image, tuple(animation_list)
 
 class NewCore():
     '''New animation player, takes result from 'sequential loader'.'''
@@ -91,12 +93,18 @@ class NewCore():
     def __init__(
             self,
             *,
+            master=None,
             frames=None
         ):
+        # pygame.Surface.subsurface returns a surface reference to its parent,
+        # so aborting the parent could cause unexpected error.
+        # Keep it in the instance may help.
+        self.master = master
         self.frames = frames
         self.frame_length = len(frames)
         self.index = 0
         self.image = self.frames[0]
+        self.rect = self.image.get_rect()
         self.last_draw = pygame.time.get_ticks()
 
     def to_next_frame(self, current_time):
@@ -108,16 +116,14 @@ class NewCore():
             self.index += 1
             self.image = self.frames[self.index % self.frame_length]
             self.last_draw = current_time
-        if not self.played:
-            if self.index >= (self.frame_length - 1):
-                self.played = True
         return
 
     @property
     def played(self):
         """Return how many times the animation played."""
-        count = self.index // self.frame_length - 1
+        count = self.index // (self.frame_length - 1)
         return count
+
 
 class Core():
     '''
