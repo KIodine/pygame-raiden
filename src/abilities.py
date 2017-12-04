@@ -8,7 +8,7 @@ import animation
 # Notes.--------------------------------------------------------------
 '''
     1.Add penetratable bullets.
-    2.Add laser.
+    2.Add laser.(Added in main module, in 'Character'.)
 '''
 #--------------------------------------------------------------------
 
@@ -124,22 +124,6 @@ class Linear(
 
     def update(self, current_time):
         self.to_next_frame(current_time)
-
-        # if self.index is not None:
-        #     elapsed_time = current_time - self.last_draw
-        #     if elapsed_time > self.fps**-1 * 1000:
-        #         self.index += 1
-        #         ani_rect = self.animation_list[self.index % self.ani_len]
-        #         self.image = self.master_image.subsurface(ani_rect)
-        #         self.last_draw = current_time
-        # else:
-        #     pygame.draw.rect(
-        #         surface,
-        #         (0, 255, 0, 255),
-        #         self.rect,
-        #         1
-        #         )
-
         if current_time - self.last_move > self.move_rate:
             self.rect.centery += self.speed_y * self.direct
             self.last_move = current_time

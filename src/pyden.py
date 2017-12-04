@@ -1,20 +1,23 @@
+# Native.-------------------------------------------------------------
 import sys
 import os
 import random
 import math
 import time
 from collections import deque, namedtuple
-
+# Third-party.--------------------------------------------------------
 import pygame
-
+# Custom.-------------------------------------------------------------
 import config as cfg
 import animation
 import abilities
 import resource
 
-# Pyden 0.40.0
+# Pyden 0.41.1
 
 # Note: Seperate actions from player for further develope.
+#   Add a 'Interface' class could be a solution, but clarify its structure
+#   is more important.
 # Note: Rename config module?
 
 _zero = time.perf_counter() # Reference point.
@@ -368,7 +371,6 @@ class Character(
 
         return
 
-
 # Mob.----------------------------------------------------------------
 
 class Mob(
@@ -410,7 +412,7 @@ class Mob(
             self.Hp
             ]
 
-        # Set fps.
+        # Overwriting params from 'NewCore'.--------------------------
         self.fps = 24
         self.last_draw = now
 
@@ -453,8 +455,6 @@ class Mob(
         for res in self._resource_list:
             res.recover(current_time)
         self._draw_hpbar()
-        pass
-
 
 # Animated_object.----------------------------------------------------
 
@@ -487,9 +487,9 @@ class Animated_object(
         self.to_next_frame(current_time)
         return
 
-
 # Indicator.----------------------------------------------------------
-
+# New HUD is planning.
+# Still using old-type 'animation.Core'.
 class Indicator(pygame.sprite.Sprite):
     '''Skill charge instructor.'''
     def __init__(
@@ -525,21 +525,21 @@ class Indicator(pygame.sprite.Sprite):
     def update(self):
         # Note: Redesign HUD for better performing.-------------------
         sprite = self.sprite
-        
+
         res = getattr(sprite, self.resource_name) 
         current_val = res.current_val
         max_val = res.max_val
-        
+
         ratio = res.ratio
         self.outer_rect = self.rect.inflate(
             self.border_expand, self.border_expand
             )
-        
+
         surf = pygame.Surface(self.outer_rect.size, pygame.SRCALPHA)
         surf_rect = self.outer_rect.copy()
         surf_rect.center = surf.get_rect().center
         arc_rect = surf_rect.inflate(-10, -10)
-        
+
         arc_ratio = ratio * (2*math.pi)
         # 'arc' takes 'radius' as param.
         # Variable arc indicates resource percentage.
@@ -562,8 +562,6 @@ class Indicator(pygame.sprite.Sprite):
                 3
                 )
         screen.blit(surf, (self.outer_rect.topleft))
-        pass
-
 
 # Instances.----------------------------------------------------------
 
@@ -585,19 +583,14 @@ enemy = Mob(
 enemy_group = pygame.sprite.Group()
 enemy_group.add(enemy)
 
-    # projectile objects.
 projectile_group = pygame.sprite.Group()
 hostile_projectile_group = pygame.sprite.Group()
 
-    # Animated objects.
-
 animated_object_group = pygame.sprite.Group()
-
-    # Skill panel.
 
 blank100 = animation.loader(w=100, h=100)
 
-charge = Indicator(
+ult = Indicator(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=80,
@@ -608,7 +601,7 @@ charge = Indicator(
 
 blank75 = animation.loader(w=75, h=75)
 
-charge2 = Indicator(
+charge = Indicator(
     x_pos=screen_rect.w-350,
     y_pos=screen_rect.h-110,
     border_expand=50,
@@ -631,9 +624,9 @@ HP_monitor = Indicator(
 
 HUD_group = pygame.sprite.Group()
 HUD_group.add(
+    HP_monitor,
     charge,
-    charge2,
-    HP_monitor
+    ult
     )
 
 # hitbox drawer.------------------------------------------------------
@@ -810,7 +803,7 @@ class AnimationHandle():
             if ani.played >= 1:
                 self.group.remove(ani)
 
-        if (len(self.draw_queue) != 0):
+        if len(self.draw_queue) != 0:
             # Issue.--------------------------------------------------
             # Description: If many enemies die in a short time, this will cause
             #   significant delay between each group of explode.
@@ -968,7 +961,7 @@ print(
     )
 
 # hotkey_actions.-----------------------------------------------------
-
+# Not a elegant way.
 def hotkey_actions(events):
     global DEV_MODE
     global PAUSE
@@ -1025,7 +1018,7 @@ def hotkey_actions(events):
     return
 
 # dev_info.-----------------------------------------------------------
-
+# Not a elegant way.
 def dev_info(events):
     '''\
 Catches 'player' and 'event' param in global and show.\
