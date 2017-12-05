@@ -59,14 +59,14 @@ def sequential_loader(
     if image is None:
          # Draw a green frame and return.
         surf = pygame.Surface(
-            (50, 50),
+            (w, h),
             pygame.SRCALPHA,
             32
         )
         pygame.draw.rect(
             surf,
             (0, 255, 0),
-            (0, 0, 50, 50),
+            (0, 0, w, h),
             1
         )
         return image, tuple([surf])
@@ -121,7 +121,10 @@ class NewCore():
     @property
     def played(self):
         """Return how many times the animation played."""
-        count = self.index // (self.frame_length - 1)
+        frame_length = self.frame_length
+        if frame_length == 1:
+            frame_length += 1
+        count = self.index // (frame_length - 1)
         return count
 
 

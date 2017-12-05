@@ -13,7 +13,7 @@ import animation
 import abilities
 import resource
 
-# Pyden 0.41.1
+# Pyden 0.41.2
 
 # Note: Seperate actions from player for further develope.
 #   Add a 'Interface' class could be a solution, but clarify its structure
@@ -273,7 +273,6 @@ class Character(
                     pass
                 # ----------------------------------------------------
 
-
         if keypress[pygame.K_l]:
             # (Replaced)Cast ult.
             if self.ult.ratio == 1:
@@ -365,10 +364,8 @@ class Character(
         '''Push character to next status.'''
         # Inheritate from 'animation.NewCore'.
         self.to_next_frame(current_time)
-
         for res in self._resource_list:
             res.recover(current_time)
-
         return
 
 # Mob.----------------------------------------------------------------
@@ -490,7 +487,10 @@ class Animated_object(
 # Indicator.----------------------------------------------------------
 # New HUD is planning.
 # Still using old-type 'animation.Core'.
-class Indicator(pygame.sprite.Sprite):
+class Indicator(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
     '''Skill charge instructor.'''
     def __init__(
             self,
@@ -504,16 +504,16 @@ class Indicator(pygame.sprite.Sprite):
             resource_name='',
             image=None
         ):
-        super(Indicator, self).__init__()
-
-        animation.Core.__init__(
-            self,
-            image_struct=image
-            )
-
         if not sprite:
             raise ValueError("No sprite being monitoring.")
-        self.resource_name = resource_name
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
+            self,
+            master=master,
+            frames=frames
+            )
+        self.resource = getattr(sprite, resource_name)
         self.sprite = sprite
 
         self.rect.topleft = x_pos, y_pos
@@ -525,21 +525,17 @@ class Indicator(pygame.sprite.Sprite):
     def update(self):
         # Note: Redesign HUD for better performing.-------------------
         sprite = self.sprite
-
-        res = getattr(sprite, self.resource_name) 
+        res = self.resource
         current_val = res.current_val
         max_val = res.max_val
-
         ratio = res.ratio
         self.outer_rect = self.rect.inflate(
             self.border_expand, self.border_expand
             )
-
         surf = pygame.Surface(self.outer_rect.size, pygame.SRCALPHA)
         surf_rect = self.outer_rect.copy()
         surf_rect.center = surf.get_rect().center
         arc_rect = surf_rect.inflate(-10, -10)
-
         arc_ratio = ratio * (2*math.pi)
         # 'arc' takes 'radius' as param.
         # Variable arc indicates resource percentage.
@@ -588,7 +584,7 @@ hostile_projectile_group = pygame.sprite.Group()
 
 animated_object_group = pygame.sprite.Group()
 
-blank100 = animation.loader(w=100, h=100)
+blank100 = animation.sequential_loader(w=100, h=100)
 
 ult = Indicator(
     x_pos=screen_rect.w-180,
@@ -599,7 +595,7 @@ ult = Indicator(
     image=blank100
     )
 
-blank75 = animation.loader(w=75, h=75)
+blank75 = animation.sequential_loader(w=75, h=75)
 
 charge = Indicator(
     x_pos=screen_rect.w-350,
@@ -609,8 +605,7 @@ charge = Indicator(
     sprite=player,
     image=blank75
     )
-
-blank80 = animation.loader(w=80, h=80)
+blank80 = animation.sequential_loader(w=80, h=80)
 
 HP_monitor = Indicator(
     x_pos=60,
@@ -703,20 +698,6 @@ class AnimationHandle():
                 ]
             )
 
-    def draw_explode(
-            self,
-            *,
-            x=0,
-            y=0
-        ):
-        eff = Animated_object(
-            init_x=x,
-            init_y=y,
-            image=new_explode
-            )
-        self.group.add(eff)
-        return
-
     def draw_single(
             self,
             *,
@@ -730,36 +711,6 @@ class AnimationHandle():
             image=image
             )
         self.group.add(eff)
-        return
-
-    def draw_multiple_explode(
-            self,
-            *,
-            x=0,
-            y=0,
-            diff=16,
-            num=5,
-            interval=0.08
-        ):
-        # Note.-------------------------------------------------------
-        # For decoupling, rename method to 'draw_multi_effects', add a
-        # 'image' param.
-        # ------------------------------------------------------------
-        if image is None:
-            return
-        now = pygame.time.get_ticks()
-        diff_pos = lambda: random.randint(-diff, diff)
-        self.draw_multi_delay = interval * 1000
-        for i in range(num):
-            eff = Animated_object(
-                init_x=x+diff_pos(),
-                init_y=y+diff_pos(),
-                image=new_explode
-                )
-            pair = self.timestamped(
-                now + interval * 1000 * i, eff
-                )
-            self.draw_queue.append(pair)
         return
 
     def draw_multi_effects(
@@ -797,22 +748,9 @@ class AnimationHandle():
         now = pygame.time.get_ticks()
         for ani in self.group:
             # Clear animations that had played once.
-            # New:
-            # if ani.played >= 1:
-            #   remove ani from group
             if ani.played >= 1:
                 self.group.remove(ani)
-
         if len(self.draw_queue) != 0:
-            # Issue.--------------------------------------------------
-            # Description: If many enemies die in a short time, this will cause
-            #   significant delay between each group of explode.
-            # Cause: This mechanism 'consumes' effects in the order they put in,
-            #   not the time they should be played.
-            # Possible solution: Add 'play_after' or similar tag to each effect,
-            #   sort by their time.(explode, timestamp) pair.
-            # Status: Found @ 171203; Solved @ 171203.
-            # --------------------------------------------------------
             if self.draw_queue[0].timestamp < now:
                 self.group.add(self.draw_queue.pop(0).frame)
         self.group.update(now)
