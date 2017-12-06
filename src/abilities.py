@@ -1,4 +1,3 @@
-import math
 from collections import namedtuple
 
 import pygame
@@ -67,7 +66,17 @@ def default_bullet(
     return image
 
 
-class Penetratable(pygame.sprite.Sprite):
+class Hitscan(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
+    pass
+
+
+class Continuous(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
     pass
 
 
@@ -83,7 +92,7 @@ class Linear(
             init_x=0,
             init_y=0,
             direct=-1,
-            speed=10,
+            speed=420,
             dmg=20,
             shooter=None,
             image=None
@@ -99,9 +108,9 @@ class Linear(
         now = pygame.time.get_ticks()
 
         self.dmg = dmg
-        self.cooldown = 12**-1 * 1000
-        self.chargable = True
         self.shooter = shooter
+        self.chargable = True
+        self.cooldown = 12**-1 * 1000 # ms -> s
 
         # Just taking place for future.-------------------------------
         self.hit_count = 0
@@ -116,17 +125,19 @@ class Linear(
         self.rect.center = init_x, init_y
         self.direct = direct
         self.speed_y = speed
-        self.move_rate = 0.1
-        self.last_move = now
+
+        self.float_y = init_y
 
         self.fps = 24
         self.last_draw = now
 
     def update(self, current_time):
         self.to_next_frame(current_time)
-        if current_time - self.last_move > self.move_rate:
-            self.rect.centery += self.speed_y * self.direct
-            self.last_move = current_time
+        self.float_y += (self.speed_y / 60) * self.direct
+        self.rect.centery = int(self.float_y)
+        # if current_time - self.last_move > self.move_rate:
+        #     self.rect.centery += self.speed_y * self.direct
+        #     self.last_move = current_time
         return
 
 

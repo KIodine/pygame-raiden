@@ -13,7 +13,7 @@ import animation
 import abilities
 import resource
 
-# Pyden 0.41.2
+# Pyden 0.41.5
 
 # Note: Seperate actions from player for further develope.
 #   Add a 'Interface' class could be a solution, but clarify its structure
@@ -84,14 +84,6 @@ explode_dir = 'images/stone.png'
 ufo_dir = 'images/ufo.gif'
 flash_dir = 'images/explosion1.png'
 
-explode = animation.loader(
-    image=explode_dir,
-    w=50,
-    h=50,
-    col=1, # Full: 6. Shorter frames for better performance.
-    row=5
-    )
-
 new_explode = animation.sequential_loader(
     image=explode_dir,
     w=50,
@@ -99,13 +91,6 @@ new_explode = animation.sequential_loader(
     col=1,
     row=5
 )
-
-ufo = animation.loader(
-    image=ufo_dir,
-    w=58,
-    h=34,
-    col=12
-    )
 
 new_ufo = animation.sequential_loader(
     image=ufo_dir,
@@ -127,7 +112,7 @@ new_flash = animation.sequential_loader(
 )
 
 # Functions.----------------------------------------------------------
-
+# Add a 'show_multiline' function?
 def show_text(
         text: str,
         x,
@@ -257,7 +242,7 @@ class Character(
                         )
                     pygame.draw.rect(
                         screen,
-                        (255, 128, 0),
+                        (255, 255, 0),
                         eff_bar
                         )
                     AnimationHandler.draw_single(
@@ -272,11 +257,6 @@ class Character(
                 else:
                     pass
                 # ----------------------------------------------------
-
-        if keypress[pygame.K_l]:
-            # (Replaced)Cast ult.
-            if self.ult.ratio == 1:
-                self.ult._to_zero()
 
         # Ultimate.---------------------------------------------------
         if keypress[pygame.K_u] and not self.ult_active:
@@ -305,7 +285,7 @@ class Character(
         '''Move player according to keypress, using WASD keys.'''
         rect = self.rect
         if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
-            rect.move_ip(0, -self.move_y_rate) # This is OK.
+            rect.move_ip(0, -self.move_y_rate)
         if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
             self.rect.move_ip(0, self.move_y_rate)
         if keypress[pygame.K_a] and self.rect.left > screen_rect.left:
@@ -320,18 +300,15 @@ class Character(
 
         if now - self.last_fire > self.fire_rate**-1 * 1000:
             self.last_fire = now
-            pass
         else:
             return
-
-        # Default bullet for test.
         image = abilities.default_bullet(color=cfg.color.yellow)
         x, y = self.rect.midtop
         bullet = abilities.Linear(
             init_x=x + b_shift(),
             init_y=y - 8,
             image=image,
-            speed=18,
+            speed=1050,
             dmg=22,
             shooter=self
         )
@@ -341,7 +318,7 @@ class Character(
     def _laser(self):
         bottom = self.rect.top - 8
         top = 0
-        w = 20
+        w = 14
         h = self.rect.top - 8
         rect = pygame.Rect(
             (self.rect.centerx - w/2, 0),
@@ -465,7 +442,8 @@ class Animated_object(
             *,
             init_x=0,
             init_y=0,
-            image=None
+            image=None,
+            fps=None
         ):
         master, frames = image
         pygame.sprite.Sprite.__init__(self)
@@ -476,8 +454,8 @@ class Animated_object(
             )
 
         self.rect.center = init_x, init_y
-
-        self.fps = 12
+        if fps:
+            self.fps = fps
         self.last_draw = pygame.time.get_ticks()
 
     def update(self, current_time):
@@ -486,7 +464,6 @@ class Animated_object(
 
 # Indicator.----------------------------------------------------------
 # New HUD is planning.
-# Still using old-type 'animation.Core'.
 class Indicator(
         pygame.sprite.Sprite,
         animation.NewCore
@@ -570,18 +547,10 @@ player = Character(
 player_group = pygame.sprite.Group()
 player_group.add(player)
 
-enemy = Mob(
-    init_x=screen_rect.centerx - 100,
-    init_y=screen_rect.centery,
-    image=new_ufo
-    )
-
 enemy_group = pygame.sprite.Group()
-enemy_group.add(enemy)
 
 projectile_group = pygame.sprite.Group()
 hostile_projectile_group = pygame.sprite.Group()
-
 animated_object_group = pygame.sprite.Group()
 
 blank100 = animation.sequential_loader(w=100, h=100)
@@ -624,9 +593,22 @@ HUD_group.add(
     ult
     )
 
+ALL_GROUPS = list()
+ALL_GROUPS.extend(
+    [
+        player_group,
+        enemy_group,
+        projectile_group,
+        hostile_projectile_group,
+        animated_object_group,
+        HUD_group
+    ]
+)
+
 # hitbox drawer.------------------------------------------------------
 
 def draw_boxes():
+    '''Drawing outline of rects.'''
     for player in player_group:
         frame = pygame.draw.rect(
             screen,
@@ -670,7 +652,7 @@ def draw_boxes():
     for ui in HUD_group:
         frame = pygame.draw.rect(
             screen,
-            (0, 255, 0, 255),
+            (0, 255, 0),
             ui.outer_rect,
             2
             )
@@ -685,8 +667,14 @@ class AnimationHandle():
             self,
             *,
             group=None,
+            surface=None
         ):
+        if group is None:
+            raise ValueError("No group is referenced.")
+        if surface is None:
+            raise ValueError("No surface is referenced.")
         self.group = group
+        self.surface = surface
         self.draw_queue = list()
         self.draw_multi_delay = 0.1 * 1000
         self.last_draw_multi = pygame.time.get_ticks()
@@ -739,22 +727,25 @@ class AnimationHandle():
                 )
             self.draw_queue.append(pair)
             # Sort draw order when inserting new effects.
-            self.draw_queue.sort(
-                key=lambda x: x.timestamp
-                )
+        self.draw_queue.sort(
+            key=lambda x: x.timestamp
+            )
         return
 
     def refresh(self):
         now = pygame.time.get_ticks()
         for ani in self.group:
-            # Clear animations that had played once.
+            # Clean animations that had played once.
             if ani.played >= 1:
                 self.group.remove(ani)
         if len(self.draw_queue) != 0:
+            # Maybe not a good style?
             if self.draw_queue[0].timestamp < now:
                 self.group.add(self.draw_queue.pop(0).frame)
+        # ------------------------------
         self.group.update(now)
-        self.group.draw(screen)
+        self.group.draw(self.surface)
+        # ------------------------------
         return
 
 # MobHandle.----------------------------------------------------------
@@ -866,7 +857,8 @@ class MobHandle():
 
 # Transfer to seperate module?
 AnimationHandler = AnimationHandle(
-    group=animated_object_group
+    group=animated_object_group,
+    surface=screen
     )
 
 MobHandler = MobHandle(
@@ -891,7 +883,6 @@ enemy_bullets = abilities.BulletHandle(
 
 # Elapsed time.
 _elapsed_time = time.perf_counter() - _zero
-
 print(
     "Time spent during initiate: {:.3f} ms".format(
         _elapsed_time * 1000
@@ -958,9 +949,7 @@ def hotkey_actions(events):
 # dev_info.-----------------------------------------------------------
 # Not a elegant way.
 def dev_info(events):
-    '''\
-Catches 'player' and 'event' param in global and show.\
-'''
+    '''Catches 'player' and 'event' param in global and show.'''
     def event_info():
         # If there is no event in 'events', for-loop will end immediatly,
         # but 'event' is not changed and will remain its last result.

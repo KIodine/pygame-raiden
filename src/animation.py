@@ -15,7 +15,7 @@ img_struct = namedtuple(
     )
 
 def loader(
-        image: pygame.Surface=None,
+        image=None,
         w=70,
         h=70,
         col=1,
@@ -42,7 +42,6 @@ Resolve and pack necessary info into 'img_struct' container.\
         )
     return struct
 
-# The new loader(progressing).
 def sequential_loader(
         image=None,
         *,
@@ -123,6 +122,7 @@ class NewCore():
         """Return how many times the animation played."""
         frame_length = self.frame_length
         if frame_length == 1:
+            # If it is a single-frame image, let it stay at least one frame.
             frame_length += 1
         count = self.index // (frame_length - 1)
         return count
