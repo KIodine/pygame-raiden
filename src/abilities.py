@@ -84,7 +84,9 @@ class Linear(
         pygame.sprite.Sprite,
         animation.NewCore
     ):
-    """Simple linear projectile."""
+    """Simple linear projectile.
+    'speed' is px/s.
+    """
     @_check_init
     def __init__(
             self,
@@ -92,7 +94,7 @@ class Linear(
             init_x=0,
             init_y=0,
             direct=-1,
-            speed=420,
+            speed=420, # px per second.
             dmg=20,
             shooter=None,
             image=None
@@ -123,7 +125,7 @@ class Linear(
         # ------------------------------------------------------------
 
         self.rect.center = init_x, init_y
-        self.direct = direct
+        self.direct = int(direct/abs(direct))
         self.speed_y = speed
 
         self.float_y = init_y
@@ -135,9 +137,6 @@ class Linear(
         self.to_next_frame(current_time)
         self.float_y += (self.speed_y / 60) * self.direct
         self.rect.centery = int(self.float_y)
-        # if current_time - self.last_move > self.move_rate:
-        #     self.rect.centery += self.speed_y * self.direct
-        #     self.last_move = current_time
         return
 
 
@@ -194,6 +193,7 @@ class BulletHandle():
         return
 
     def _ult_feedback(self, val=0):
+        # Not a good idea.
         shooter = self.shooter # Pass by reference.
         if shooter is None:
             return

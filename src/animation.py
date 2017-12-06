@@ -1,4 +1,5 @@
 import os
+import random
 from collections import namedtuple
 
 import pygame
@@ -128,57 +129,124 @@ class NewCore():
         return count
 
 
-class Core():
-    '''
-Takes 'img_struct', resolve into frame list.
-Cannot use independent, must initialize explictly.
-'''
-    fps = 24
-    played = False
+class AnimatedObject(
+        pygame.sprite.Sprite,
+        NewCore
+    ):
+    '''Building pure effect with image.'''
     def __init__(
             self,
             *,
-            image_struct=None,
+            init_x=0,
+            init_y=0,
+            image=None,
+            fps=None
         ):
-        # Progessing: take 'img_struct' and resolve.
-        # Unpack data.
-        self.image_struct = image_struct
-        image, w, h, col, row = image_struct
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        NewCore.__init__(
+            self,
+            master=master,
+            frames=frames
+            )
 
+        self.rect.center = init_x, init_y
+        if fps:
+            self.fps = fps
+        self.last_draw = pygame.time.get_ticks()
+
+    def update(self, current_time):
+        self.to_next_frame(current_time)
+        return
+
+
+class AnimationHandle():
+    '''Handle effects.'''
+    def __init__(
+            self,
+            *,
+            group=None,
+            surface=None
+        ):
+        if group is None:
+            raise ValueError("No group is referenced.")
+        if surface is None:
+            raise ValueError("No surface is referenced.")
+        self.group = group
+        self.surface = surface
+        self.draw_queue = list()
+        self.draw_multi_delay = 0.1 * 1000
+        self.last_draw_multi = pygame.time.get_ticks()
+        self.timestamped = namedtuple(
+            'Stamped_Frame',
+            [
+                'timestamp',
+                'frame'
+                ]
+            )
+
+    def draw_single(
+            self,
+            *,
+            x=0,
+            y=0,
+            image=None,
+            fps=None
+        ):
+        eff = AnimatedObject(
+            init_x=x,
+            init_y=y,
+            image=image,
+            fps=fps
+            )
+        self.group.add(eff)
+        return
+
+    def draw_multi_effects(
+            self,
+            *,
+            x=0,
+            y=0,
+            diff=16,
+            num=5,
+            interval=0.08,
+            image=None,
+            fps=None
+        ):
         if image is None:
-            self.image = pygame.Surface((w, h), pygame.SRCALPHA)
-            self.rect = self.image.get_rect()
-            self.image.fill((0, 0, 0, 0))
-            pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
-            self.index = None
-        elif isinstance(image, pygame.Surface):
-            self.index = 0
-            self.animation_list = []
-            self.master_image = image
-            for i in range(row):
-                for j in range(col):
-                    self.animation_list.append(
-                        [j*w, i*h, w, h]
-                        )
-            self.rect = pygame.rect.Rect(0, 0, w, h)
-            # Set a smaller collide rect for better player experience?
-            ani_rect = self.animation_list[self.index]
-            self.ani_len = len(self.animation_list)
-            self.image = self.master_image.subsurface(ani_rect)
-        else:
-            raise TypeError(
-                f"Expecting 'image_struct' type, got {image}."
+            return
+        now = pygame.time.get_ticks()
+        diff_pos = lambda: random.randint(-diff, diff)
+        self.draw_multi_delay = interval * 1000
+        for i in range(num):
+            eff = AnimatedObject(
+                init_x=x+diff_pos(),
+                init_y=y+diff_pos(),
+                image=image,
+                fps=fps
                 )
+            pair = self.timestamped(
+                now + interval * 1000 * i, eff
+                )
+            self.draw_queue.append(pair)
+            # Sort draw order when inserting new effects.
+        self.draw_queue.sort(
+            key=lambda x: x.timestamp
+            )
+        return
 
-    def to_next_frame(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-            if not self.played:
-                if self.index >= (self.ani_len - 1):
-                    self.played = True
-        raise NotImplementedError
+    def refresh(self):
+        now = pygame.time.get_ticks()
+        for ani in self.group:
+            # Clean animations that had played once.
+            if ani.played >= 1:
+                self.group.remove(ani)
+        if len(self.draw_queue) != 0:
+            # Maybe not a good style?
+            if self.draw_queue[0].timestamp < now:
+                self.group.add(self.draw_queue.pop(0).frame)
+        # ------------------------------
+        self.group.update(now)
+        self.group.draw(self.surface)
+        # ------------------------------
+        return

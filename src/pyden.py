@@ -13,12 +13,17 @@ import animation
 import abilities
 import resource
 
-# Pyden 0.41.5
-
-# Note: Seperate actions from player for further develope.
-#   Add a 'Interface' class could be a solution, but clarify its structure
-#   is more important.
-# Note: Rename config module?
+# Pyden 0.41.7
+'''Notes:
+    1. Seperate actions from player for further develope.
+        Add a 'Interface' class could be a solution, but clarify its structure
+        is more important.
+    2. Rename config module?
+    3. The way to share 'AnimationHandler', passing reference when initialize
+        related module?
+    4. 'Character', 'Mob', 'MobHandle' and someother are coupled with 
+        'animation.AnimationHandle'(Note-3)
+'''
 
 _zero = time.perf_counter() # Reference point.
 
@@ -26,12 +31,11 @@ dice = lambda chn: True if chn > random.random() * 100 else False
 
 # Set constants.------------------------------------------------------
 
+FPS = 60
 W_WIDTH = cfg.W_WIDTH
 W_HEIGHT = cfg.W_HEIGHT
 DEFAULT_COLOR = cfg.default_bgcolor
 BLACK = cfg.color.black
-
-FPS = 60
 
 # Game constants and utilities.---------------------------------------
 
@@ -62,6 +66,34 @@ screen_rect = screen.get_rect()
 
 abilities.init(screen)
 assert abilities.is_initiated()
+
+# Init containers.----------------------------------------------------
+
+player_group = pygame.sprite.Group()
+enemy_group = pygame.sprite.Group()
+projectile_group = pygame.sprite.Group()
+hostile_projectile_group = pygame.sprite.Group()
+animated_object_group = pygame.sprite.Group()
+HUD_group = pygame.sprite.Group()
+
+ALL_GROUPS = list()
+ALL_GROUPS.extend(
+    [
+        player_group,
+        enemy_group,
+        projectile_group,
+        hostile_projectile_group,
+        animated_object_group,
+        HUD_group
+    ]
+)
+
+# Init handlers.------------------------------------------------------
+
+AnimationHandler = animation.AnimationHandle(
+    group=animated_object_group,
+    surface=screen
+    )
 
 # Load resources.-----------------------------------------------------
 
@@ -99,6 +131,7 @@ new_ufo = animation.sequential_loader(
     col=12
 )
 
+# The old-style loader, still using.
 flash = animation.loader(
     image=flash_dir,
     w=15,
@@ -115,8 +148,8 @@ new_flash = animation.sequential_loader(
 # Add a 'show_multiline' function?
 def show_text(
         text: str,
-        x,
-        y,
+        x=0,
+        y=0,
         font=msjh_16,
         color=cfg.color.white
     ):
@@ -129,18 +162,6 @@ def show_text(
     rendered_text = font.render(text, True, color)
     screen.blit(rendered_text, (x, y))
     return None
-
-def transparent_image(
-        w=50,
-        h=50,
-        color=(0, 0, 0, 0)
-    ) -> pygame.Surface:
-    surface = pygame.Surface(
-        (w, h),
-        pygame.SRCALPHA
-        )
-    surface.fill(color)
-    return surface
 
 # Classes.------------------------------------------------------------
 
@@ -167,7 +188,6 @@ class Character(
             master=master,
             frames=frames
             )
-
         now = pygame.time.get_ticks()
 
         self.rect.center = init_x, init_y
@@ -430,38 +450,6 @@ class Mob(
             res.recover(current_time)
         self._draw_hpbar()
 
-# Animated_object.----------------------------------------------------
-
-class Animated_object(
-        pygame.sprite.Sprite,
-        animation.NewCore
-    ):
-    '''Building pure effect with image.'''
-    def __init__(
-            self,
-            *,
-            init_x=0,
-            init_y=0,
-            image=None,
-            fps=None
-        ):
-        master, frames = image
-        pygame.sprite.Sprite.__init__(self)
-        animation.NewCore.__init__(
-            self,
-            master=master,
-            frames=frames
-            )
-
-        self.rect.center = init_x, init_y
-        if fps:
-            self.fps = fps
-        self.last_draw = pygame.time.get_ticks()
-
-    def update(self, current_time):
-        self.to_next_frame(current_time)
-        return
-
 # Indicator.----------------------------------------------------------
 # New HUD is planning.
 class Indicator(
@@ -494,8 +482,10 @@ class Indicator(
         self.sprite = sprite
 
         self.rect.topleft = x_pos, y_pos
-
         self.border_expand = border_expand
+        self.outer_rect = self.rect.inflate(
+            self.border_expand, self.border_expand
+            )
         self.arc_color = arc_color
         self.rim_color = rim_color
 
@@ -506,9 +496,6 @@ class Indicator(
         current_val = res.current_val
         max_val = res.max_val
         ratio = res.ratio
-        self.outer_rect = self.rect.inflate(
-            self.border_expand, self.border_expand
-            )
         surf = pygame.Surface(self.outer_rect.size, pygame.SRCALPHA)
         surf_rect = self.outer_rect.copy()
         surf_rect.center = surf.get_rect().center
@@ -543,15 +530,7 @@ player = Character(
     init_y=screen_rect.centery + 100,
     image=new_ufo
     )
-
-player_group = pygame.sprite.Group()
 player_group.add(player)
-
-enemy_group = pygame.sprite.Group()
-
-projectile_group = pygame.sprite.Group()
-hostile_projectile_group = pygame.sprite.Group()
-animated_object_group = pygame.sprite.Group()
 
 blank100 = animation.sequential_loader(w=100, h=100)
 
@@ -586,24 +565,11 @@ HP_monitor = Indicator(
     image=blank80
     )
 
-HUD_group = pygame.sprite.Group()
 HUD_group.add(
     HP_monitor,
     charge,
     ult
     )
-
-ALL_GROUPS = list()
-ALL_GROUPS.extend(
-    [
-        player_group,
-        enemy_group,
-        projectile_group,
-        hostile_projectile_group,
-        animated_object_group,
-        HUD_group
-    ]
-)
 
 # hitbox drawer.------------------------------------------------------
 
@@ -661,93 +627,6 @@ def draw_boxes():
 
 # Handlers.-----------------------------------------------------------
 
-class AnimationHandle():
-    '''Handle effects.'''
-    def __init__(
-            self,
-            *,
-            group=None,
-            surface=None
-        ):
-        if group is None:
-            raise ValueError("No group is referenced.")
-        if surface is None:
-            raise ValueError("No surface is referenced.")
-        self.group = group
-        self.surface = surface
-        self.draw_queue = list()
-        self.draw_multi_delay = 0.1 * 1000
-        self.last_draw_multi = pygame.time.get_ticks()
-        self.timestamped = namedtuple(
-            'Stamped_Frame',
-            [
-                'timestamp',
-                'frame'
-                ]
-            )
-
-    def draw_single(
-            self,
-            *,
-            x=0,
-            y=0,
-            image=None
-        ):
-        eff = Animated_object(
-            init_x=x,
-            init_y=y,
-            image=image
-            )
-        self.group.add(eff)
-        return
-
-    def draw_multi_effects(
-            self,
-            *,
-            x=0,
-            y=0,
-            image=None,
-            diff=16,
-            num=5,
-            interval=0.08
-        ):
-        if image is None:
-            return
-        now = pygame.time.get_ticks()
-        diff_pos = lambda: random.randint(-diff, diff)
-        self.draw_multi_delay = interval * 1000
-        for i in range(num):
-            eff = Animated_object(
-                init_x=x+diff_pos(),
-                init_y=y+diff_pos(),
-                image=image
-                )
-            pair = self.timestamped(
-                now + interval * 1000 * i, eff
-                )
-            self.draw_queue.append(pair)
-            # Sort draw order when inserting new effects.
-        self.draw_queue.sort(
-            key=lambda x: x.timestamp
-            )
-        return
-
-    def refresh(self):
-        now = pygame.time.get_ticks()
-        for ani in self.group:
-            # Clean animations that had played once.
-            if ani.played >= 1:
-                self.group.remove(ani)
-        if len(self.draw_queue) != 0:
-            # Maybe not a good style?
-            if self.draw_queue[0].timestamp < now:
-                self.group.add(self.draw_queue.pop(0).frame)
-        # ------------------------------
-        self.group.update(now)
-        self.group.draw(self.surface)
-        # ------------------------------
-        return
-
 # MobHandle.----------------------------------------------------------
 
 class MobHandle():
@@ -756,13 +635,14 @@ class MobHandle():
             self,
             *,
             group=None,
+            animation_handler=None,
             spawn_interval=1,
             max_amount=10
         ):
         now = pygame.time.get_ticks()
-
-        self.next_spawn = now + spawn_interval * 1000
         self.group = group
+        self.animation_handler = animation_handler
+        self.next_spawn = now + spawn_interval * 1000
         self.spawn_interval = spawn_interval * 1000
         self.max_amount = max_amount
 
@@ -773,16 +653,14 @@ class MobHandle():
         #   if spawned, set 'next_spawn' as 'current_time' + 'spawn_interval'
         # if there is no space for spawn, set 'next_spawn' as
         #   'current_time' + 'spawn_interval'
-
+        if self.group is None:
+            return
+        reset_next_spawn = lambda: current_time + self.spawn_interval
         current_time = pygame.time.get_ticks()
 
         self.group.update(current_time)
         self.group.draw(screen)
 
-        reset_next_spawn = lambda: current_time + self.spawn_interval
-
-        if self.group is None:
-            return
         self._clear_deadbody(current_time)
         self._attack_random(5)
 
@@ -795,18 +673,17 @@ class MobHandle():
         return
 
     def _spawn_random_pos(self):
-        # Add check(Psuedo code):
-        #   if enemy.rect collides existing enemy:
-        #     retry
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
         safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
-
         enemy = Mob(
             init_x=safe_x_pos(),
             init_y=safe_y_pos(),
             image=new_ufo
             )
         while True:
+            # Add check(Psuedo code):
+            #   if enemy.rect collides existing enemy:
+            #     retry
             if not pygame.sprite.spritecollide(
                     enemy,
                     self.group,
@@ -822,26 +699,17 @@ class MobHandle():
 
     def _clear_deadbody(self, current_time):
         '''Clear hostile that 'Hp' less/equal than zero.'''
-        # Clear deadbody and play explosion.
-        global KILL_COUNT
-
+        global KILL_COUNT # Be aware!
         for hostile in self.group:
             if hostile.Hp.current_val <= 0:
                 self.group.remove(hostile)
-
-                 # Not a good choice.
-                KILL_COUNT += 1
-
+                KILL_COUNT += 1 # Global variable.
                 x, y = hostile.rect.center
-                # Test.-------------------------------------
-                # Bad coupling, need to solve.
-                # Solved @ 171203.
-                AnimationHandler.draw_multi_effects(
+                self.animation_handler.draw_multi_effects(
                     x=x,
                     y=y,
                     image=new_explode
                     )
-                # Test.-------------------------------------
                 pass
             pass
         return
@@ -855,14 +723,9 @@ class MobHandle():
 
 # Instance.-----------------------------------------------------------
 
-# Transfer to seperate module?
-AnimationHandler = AnimationHandle(
-    group=animated_object_group,
-    surface=screen
-    )
-
 MobHandler = MobHandle(
     group=enemy_group,
+    animation_handler=AnimationHandler,
     max_amount=17
     )
 
@@ -1046,7 +909,6 @@ while RUN_FLAG:
     keypress = pygame.key.get_pressed()
 
     MobHandler.refresh()
-
     player_bullets.refresh()
     enemy_bullets.refresh()
 
