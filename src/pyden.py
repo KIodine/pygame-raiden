@@ -62,11 +62,6 @@ screen.fill(cfg.color.black)
 
 screen_rect = screen.get_rect()
 
-# Init custom modules.------------------------------------------------
-
-abilities.init(screen)
-assert abilities.is_initiated()
-
 # Init containers.----------------------------------------------------
 
 player_group = pygame.sprite.Group()
@@ -87,13 +82,6 @@ ALL_GROUPS.extend(
         HUD_group
     ]
 )
-
-# Init handlers.------------------------------------------------------
-
-AnimationHandler = animation.AnimationHandle(
-    group=animated_object_group,
-    surface=screen
-    )
 
 # Load resources.-----------------------------------------------------
 
@@ -144,6 +132,12 @@ new_flash = animation.sequential_loader(
     h=15
 )
 
+
+# Init custom modules.------------------------------------------------
+
+abilities.init(screen)
+assert abilities.is_initiated()
+
 # Functions.----------------------------------------------------------
 # Add a 'show_multiline' function?
 def show_text(
@@ -177,7 +171,8 @@ class Character(
             *,
             init_x=0,
             init_y=0,
-            image=None
+            image=None,
+            attrs=None
         ):
         # Must be explictly.
         master, frames = image
@@ -197,6 +192,9 @@ class Character(
 
         self.fire_rate = 12
         self.last_fire = now
+        # New attr mechanism.-----------------------------------------
+        self.attrs = attrs
+        # ------------------------------------------------------------
 
         # ------------------------------------------------------------
         self.Hp = resource.default_player_hp(
@@ -721,12 +719,11 @@ class MobHandle():
                 hostile.attack(hostile_projectile_group)
                 # Play shooting sound here.
 
-# Instance.-----------------------------------------------------------
+# Init handlers.------------------------------------------------------
 
-MobHandler = MobHandle(
-    group=enemy_group,
-    animation_handler=AnimationHandler,
-    max_amount=17
+AnimationHandler = animation.AnimationHandle(
+    group=animated_object_group,
+    surface=screen
     )
 
 player_bullets = abilities.BulletHandle(
@@ -742,6 +739,12 @@ enemy_bullets = abilities.BulletHandle(
     target_group=player_group,
     collide_coef=0.7,
     on_hit=flash
+    )
+
+MobHandler = MobHandle(
+    group=enemy_group,
+    animation_handler=AnimationHandler,
+    max_amount=17
     )
 
 # Elapsed time.

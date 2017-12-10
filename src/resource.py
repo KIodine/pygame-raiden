@@ -1,5 +1,12 @@
 from functools import partial
 
+# Idetifier for resource built in this module.------------------------
+INVALID = -1
+HP = 0
+CHARGE = 1
+ULTIMATE = 2
+# --------------------------------------------------------------------
+
 class Resource():
     '''Resource container and manager.'''
     # Fixed data structure.
@@ -34,7 +41,7 @@ class Resource():
         self.max_val = max_val
         self.charge_val = charge_val
         self.charge_speed = charge_speed
-        self.last_charge = init_time # Replace with 'now'.
+        self.last_charge = init_time # Replace with 'now' or 0.
 
         self.delay = delay
         self.delay_time = delay_time
@@ -48,6 +55,8 @@ class Resource():
             current_val=int(self.current_val),
             ratio=self.ratio*100
             )
+    
+    # Define magic method '__iadd__' and '__isub__' for test.
 
     def recover(self, current_time):
         '''Recover resource over time.'''

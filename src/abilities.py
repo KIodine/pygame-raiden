@@ -157,10 +157,7 @@ class BulletHandle():
         self.target_group = target_group
         self.collide_coef = collide_coef
         self.surface_rect = surface.get_rect()
-
         self.on_hit = on_hit
-        self._on_hit_list = []
-        self._on_hit_interval = 0.015
 
     def refresh(self):
         flash = self.on_hit
