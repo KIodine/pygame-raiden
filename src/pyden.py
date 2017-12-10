@@ -14,7 +14,7 @@ import animation
 import abilities
 import resource
 
-# Pyden 0.41.7
+# Pyden 0.42.2
 '''Notes:
     1. Seperate actions from player for further develope.
         Add a 'Interface' class could be a solution, but clarify its structure
