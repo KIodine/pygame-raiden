@@ -4,6 +4,7 @@ import os
 import random
 import math
 import time
+import copy
 from collections import deque, namedtuple
 # Third-party.--------------------------------------------------------
 import pygame
@@ -21,7 +22,7 @@ import resource
     2. Rename config module?
     3. The way to share 'AnimationHandler', passing reference when initialize
         related module?
-    4. 'Character', 'Mob', 'MobHandle' and someother are coupled with 
+    4. 'Character', 'Mob', 'MobHandle' and someother are coupled with
         'animation.AnimationHandle'(Note-3)
 '''
 
@@ -161,6 +162,21 @@ def show_text(
 
 # Character.----------------------------------------------------------
 
+PLAYER_ATTRS = resource.RES_DICT(
+    {
+        resource.HP: resource.default_player_hp(),
+        resource.CHARGE: resource.default_player_charge(),
+        resource.ULTIMATE: resource.default_player_ultimate()
+    }
+)
+
+
+ENEMY_ATTRS = resource.RES_DICT(
+    {
+        resource.HP: resource.default_enemy_hp()
+    }
+)
+
 class Character(
         pygame.sprite.Sprite,
         animation.NewCore
@@ -232,8 +248,9 @@ class Character(
 
         if keypress[pygame.K_k] and not self.ult_active:
             # Cast charged skill.
-            ratio = self.Charge.ratio
-            if self.Charge.ratio == 1:
+            # ratio = self.Charge.ratio
+            ratio = self.attrs[resource.CHARGE].ratio
+            if ratio == 1:
                 # ----------------------------------------------------
                 # Issue: The beam stays too short on screen.
                 rect = self.rect
@@ -268,32 +285,44 @@ class Character(
                         y=eff_bar.top,
                         image=new_flash
                         )
-                    hit.Hp.current_val -= 120
+                    # hit.Hp.current_val -= 120
+                    hit.attrs[resource.HP].current_val -= 120
                     # Only when the skill hits enemy then energy consume.
-                    self.Charge._to_zero()
-                    self.ult.charge(120)
+                    # self.Charge._to_zero()
+                    self.attrs[resource.CHARGE]._to_zero()
+                    # self.ult.charge(120)
+                    self.attrs[resource.ULTIMATE].charge(120)
                 else:
                     pass
                 # ----------------------------------------------------
 
         # Ultimate.---------------------------------------------------
         if keypress[pygame.K_u] and not self.ult_active:
-            if self.ult.ratio == 1:
+            if self.attrs[resource.ULTIMATE].ratio == 1:
+                # if self.ult.ratio == 1:
                 print("<Ultimate activated>")
                 self.ult_active = True
+            else:
+                print(
+                    "<Insufficient energy: {}>".format(
+                        self.attrs[resource.HP].ratio
+                    )
+                )
 
         if keypress[pygame.K_u] \
            and self.ult_active \
-           and (self.ult.ratio != 0):
+           and (self.attrs[resource.ULTIMATE].ratio != 0):
             self._laser()
-            self.ult.current_val -= 13
+            # self.ult.current_val -= 13
+            self.attrs[resource.ULTIMATE].current_val -= 13
         else:
             if self.ult_active == True:
                 self.ult_active = False
                 print((
                     "<Ultimate deactiveted,"
                     " remaining energy: {u_ratio:.2f}%>".format(
-                        u_ratio=self.ult.ratio * 100
+                        # u_ratio=self.ult.ratio * 100
+                        u_ratio=self.attrs[resource.ULTIMATE].ratio * 100
                         )
                     ))
         # ------------------------------------------------------------
@@ -313,6 +342,7 @@ class Character(
         return
 
     def _create_bullet(self, projectile_group):
+        # Use identifier instead of group??
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
 
@@ -349,7 +379,8 @@ class Character(
             )
         for enemy in enemy_group:
             if rect.colliderect(enemy.rect):
-                enemy.Hp.current_val -= 10
+                # enemy.Hp.current_val -= 10
+                enemy.attrs[resource.HP].current_val -= 10
         for host_proj in hostile_projectile_group:
             if rect.colliderect(host_proj):
                 hostile_projectile_group.remove(host_proj)
@@ -359,7 +390,9 @@ class Character(
         '''Push character to next status.'''
         # Inheritate from 'animation.NewCore'.
         self.to_next_frame(current_time)
-        for res in self._resource_list:
+        # for res in self._resource_list:
+        #     res.recover(current_time)
+        for res in self.attrs.values():
             res.recover(current_time)
         return
 
@@ -375,7 +408,8 @@ class Mob(
             *,
             init_x=0,
             init_y=0,
-            image=None
+            image=None,
+            attrs=None
         ):
         master, frames = image
         pygame.sprite.Sprite.__init__(self)
@@ -394,7 +428,9 @@ class Mob(
 
         self.fire_rate = 1
         self.last_fire = now
-
+        # New attr.---------------------------------------------------
+        self.attrs = attrs
+        # ------------------------------------------------------------
         # ------------------------------------------------------------
         self.Hp = resource.default_enemy_hp(
             init_time=now
@@ -409,7 +445,8 @@ class Mob(
         self.last_draw = now
 
     def _draw_hpbar(self):
-        hp_ratio = int(100 * self.Hp.ratio)
+        # hp_ratio = int(100 * self.Hp.ratio)
+        hp_ratio = int(self.attrs[resource.HP].ratio * 100)
         bar = pygame.rect.Rect(
             0, 0, hp_ratio, 6
             )
@@ -444,7 +481,9 @@ class Mob(
 
     def update(self, current_time):
         self.to_next_frame(current_time)
-        for res in self._resource_list:
+        # for res in self._resource_list:
+        #     res.recover(current_time)
+        for res in self.attrs.values():
             res.recover(current_time)
         self._draw_hpbar()
 
@@ -464,7 +503,7 @@ class Indicator(
             arc_color=(47, 89, 158, 190),
             rim_color=(0, 255, 255, 215),
             sprite=None,
-            resource_name='',
+            resource_name='', # Will be resource flag and change to 'resource_flag'.
             image=None
         ):
         if not sprite:
@@ -476,7 +515,8 @@ class Indicator(
             master=master,
             frames=frames
             )
-        self.resource = getattr(sprite, resource_name)
+        # self.resource = getattr(sprite, resource_name)
+        self.resource = sprite.attrs[resource_name]
         self.sprite = sprite
 
         self.rect.topleft = x_pos, y_pos
@@ -526,7 +566,8 @@ class Indicator(
 player = Character(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery + 100,
-    image=new_ufo
+    image=new_ufo,
+    attrs=PLAYER_ATTRS
     )
 player_group.add(player)
 
@@ -536,7 +577,7 @@ ult = Indicator(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=80,
-    resource_name='ult',
+    resource_name=resource.ULTIMATE, # resource.ULTIMATE
     sprite=player,
     image=blank100
     )
@@ -547,7 +588,7 @@ charge = Indicator(
     x_pos=screen_rect.w-350,
     y_pos=screen_rect.h-110,
     border_expand=50,
-    resource_name='Charge',
+    resource_name=resource.CHARGE, # resource.CHARGE
     sprite=player,
     image=blank75
     )
@@ -557,7 +598,7 @@ HP_monitor = Indicator(
     x_pos=60,
     y_pos=515,
     border_expand=50,
-    resource_name='Hp',
+    resource_name=resource.HP, # resource.HP
     arc_color=(25, 221, 0, 240),
     sprite=player,
     image=blank80
@@ -676,7 +717,8 @@ class MobHandle():
         enemy = Mob(
             init_x=safe_x_pos(),
             init_y=safe_y_pos(),
-            image=new_ufo
+            image=new_ufo,
+            attrs=copy.deepcopy(ENEMY_ATTRS)
             )
         while True:
             # Add check(Psuedo code):
@@ -699,7 +741,8 @@ class MobHandle():
         '''Clear hostile that 'Hp' less/equal than zero.'''
         global KILL_COUNT # Be aware!
         for hostile in self.group:
-            if hostile.Hp.current_val <= 0:
+            if hostile.attrs[resource.HP].current_val <= 0:
+                # if hostile.Hp.current_val <= 0:
                 self.group.remove(hostile)
                 KILL_COUNT += 1 # Global variable.
                 x, y = hostile.rect.center
@@ -782,17 +825,23 @@ def hotkey_actions(events):
 
             if key == pygame.K_F3:
                 print("<Charge resource to max>")
-                for p_res in player._resource_list:
+                for p_res in player.attrs.values():
                     p_res._to_max()
                 for e in enemy_group:
-                    for e_res in e._resource_list:
+                    for e_res in e.attrs.values():
                         e_res._to_max()
-                        pass
-                    pass
+                # for p_res in player._resource_list:
+                #     p_res._to_max()
+                # for e in enemy_group:
+                #     for e_res in e._resource_list:
+                #         e_res._to_max()
+                #         pass
+                #     pass
                 pass
 
             if key == pygame.K_F4:
-                player.Hp.current_val -= 50
+                # player.Hp.current_val -= 50
+                player.attrs[resource.HP].current_val -= 50
                 pass
 
             if key == pygame.K_p:
@@ -839,7 +888,8 @@ def dev_info(events):
                 color=cfg.color.black
                 )
             show_text(
-                player.Hp,
+                # player.Hp,
+                player.attrs[resource.HP],
                 170,
                 490,
                 color=cfg.color.black
@@ -851,7 +901,8 @@ def dev_info(events):
         for enemy in enemy_group:
             x, y = enemy.rect.bottomright
             show_text(
-                enemy.Hp,
+                # enemy.Hp,
+                enemy.attrs[resource.HP],
                 x,
                 y,
                 color=cfg.color.black

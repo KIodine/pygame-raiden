@@ -1,11 +1,32 @@
-from functools import partial
+from functools import partial, wraps
+from collections import defaultdict
+
 
 # Idetifier for resource built in this module.------------------------
 INVALID = -1
 HP = 0
 CHARGE = 1
 ULTIMATE = 2
+
+RES_DICT = partial(defaultdict, lambda: INVALID)
+# If someone trys to access a inexist key, the defaultdict will return
+# the lambda function, in this case, the 'INVALID' value.
 # --------------------------------------------------------------------
+
+def limiter(method):
+    '''Decorator for resource, provide limitation to ciel and floor.'''
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        '''Wrapper.'''
+        method(self, *args, **kwargs)
+        if self.current_val > self.max_val:
+            print("Triggered ciel protection.")
+            self.current_val = self.max_val
+        elif self.current_val < 0:
+            print("Triggered floor protection.")
+            self.current_val = 0
+        return self
+    return wrapper
 
 class Resource():
     '''Resource container and manager.'''
@@ -55,8 +76,16 @@ class Resource():
             current_val=int(self.current_val),
             ratio=self.ratio*100
             )
-    
-    # Define magic method '__iadd__' and '__isub__' for test.
+
+    @limiter
+    def __iadd__(self, other):
+        self.current_val += other
+        return self
+
+    @limiter
+    def __isub__(self, other):
+        self.current_val -= other
+        return self
 
     def recover(self, current_time):
         '''Recover resource over time.'''
@@ -88,6 +117,7 @@ class Resource():
 
     def charge(self, val=0):
         '''Charge resource with 'val'.'''
+        # Considering replace with 'magic method' and decorator.
         if self.ratio < 1:
             self.current_val += val
             self._over_charge_check()
@@ -96,7 +126,8 @@ class Resource():
     @property
     def ratio(self):
         c_val = self.current_val
-        if c_val < 0: c_val = 0
+        if c_val < 0:
+            c_val = 0
         return c_val/self.max_val
 
     def _to_zero(self):
@@ -111,6 +142,7 @@ class Resource():
 
     def _over_charge_check(self):
         '''If current_val exceeds max_val, set it to max_val.'''
+        # Considering replace with decorator.
         if self.current_val > self.max_val:
             self.current_val = self.max_val
         return

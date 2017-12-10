@@ -3,6 +3,7 @@ from collections import namedtuple
 import pygame
 
 import animation
+import resource
 
 # Notes.--------------------------------------------------------------
 '''
@@ -178,7 +179,8 @@ class BulletHandle():
                 collided=pygame.sprite.collide_rect_ratio(ratio)
                 )
             for collided in collides:
-                collided.Hp.current_val -= proj.dmg
+                collided.attrs[resource.HP].current_val -= proj.dmg
+                # collided.Hp.current_val -= proj.dmg
                 self._ult_feedback(proj.dmg)
                 self.group.remove(proj)
 
@@ -195,6 +197,13 @@ class BulletHandle():
         if shooter is None:
             return
         else:
-            if hasattr(shooter, 'ult'):
-                shooter.ult.charge(val)
+            # if hasattr(shooter, 'ult'):
+            #     shooter.ult.charge(val)
+            # if resource.ULTIMATE in shooter.attrs:
+            #     shooter.attrs[resource.ULTIMATE].charge(val)
+            # or:
+            res = shooter.attrs[resource.ULTIMATE]
+            if res != resource.INVALID:
+                # res.charge(val)
+                res += val # Test OK.
         return
