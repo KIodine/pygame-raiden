@@ -1,8 +1,18 @@
 from functools import partial, wraps
 from collections import defaultdict
+from enum import Enum
 
 
 # Idetifier for resource built in this module.------------------------
+# Use 'Enum' in 'enum' module to set unique identifier?
+# if so, name it 'R_ID'
+class ResID(Enum):
+    """Unique identifier for marking."""
+    INVALID = -1
+    HP = 0
+    CHARGE = 1
+    ULTIMATE = 2
+
 INVALID = -1
 HP = 0
 CHARGE = 1
@@ -20,10 +30,8 @@ def limiter(method):
         '''Wrapper.'''
         method(self, *args, **kwargs)
         if self.current_val > self.max_val:
-            print("Triggered ciel protection.")
             self.current_val = self.max_val
         elif self.current_val < 0:
-            print("Triggered floor protection.")
             self.current_val = 0
         return self
     return wrapper
@@ -87,6 +95,8 @@ class Resource():
         self.current_val -= other
         return self
 
+    # Implement comparison?
+
     def recover(self, current_time):
         '''Recover resource over time.'''
         # The main method.
@@ -108,19 +118,10 @@ class Resource():
 
         if is_available():
             self.last_charge = current_time
-            self.current_val += self.charge_val
-            self._over_charge_check()
+            self += self.charge_val
             self.last_val = self.current_val
         # Limit the minimum val to zero.
         if self.current_val < 0: self.current_val = 0
-        return
-
-    def charge(self, val=0):
-        '''Charge resource with 'val'.'''
-        # Considering replace with 'magic method' and decorator.
-        if self.ratio < 1:
-            self.current_val += val
-            self._over_charge_check()
         return
 
     @property
@@ -140,12 +141,6 @@ class Resource():
         self.current_val = self.max_val
         return
 
-    def _over_charge_check(self):
-        '''If current_val exceeds max_val, set it to max_val.'''
-        # Considering replace with decorator.
-        if self.current_val > self.max_val:
-            self.current_val = self.max_val
-        return
 
 default_player_hp = partial(
     Resource,

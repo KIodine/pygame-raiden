@@ -5,7 +5,9 @@ import random
 import math
 import time
 import copy
+import weakref # Analyzing object lifespan.
 from collections import deque, namedtuple
+from enum import Enum
 # Third-party.--------------------------------------------------------
 import pygame
 # Custom.-------------------------------------------------------------
@@ -14,7 +16,7 @@ import animation
 import abilities
 import resource
 
-# Pyden 0.42.2
+# Pyden 0.42.3
 '''Notes:
     1. Seperate actions from player for further develope.
         Add a 'Interface' class could be a solution, but clarify its structure
@@ -24,6 +26,7 @@ import resource
         related module?
     4. 'Character', 'Mob', 'MobHandle' and someother are coupled with
         'animation.AnimationHandle'(Note-3)
+    5. Use custom identifier than seperate group?
 '''
 
 _zero = time.perf_counter() # Reference point.
@@ -83,6 +86,12 @@ ALL_GROUPS.extend(
         HUD_group
     ]
 )
+# No actual effect right now.
+class Camp(Enum):
+    """Camp identifier."""
+    PLAYER = 0
+    ENEMY = 1
+    NEUTRAL = 2
 
 # Load resources.-----------------------------------------------------
 
@@ -182,13 +191,23 @@ class Character(
         animation.NewCore
     ):
     '''Create player character for manipulation.'''
+    '''Dependencies.(which are not passed by params or inheritance.)
+        Depends on:
+            (1) enemy_group
+            (2) AnimationHandler
+            (3) abilities
+            (4) projectile_group
+            (5) hostile_projectile_group
+            (6) screen
+    '''
     def __init__(
             self,
             *,
             init_x=0,
             init_y=0,
             image=None,
-            attrs=None
+            attrs=None, # Add a 'camp' param to identify its group?
+            camp=None
         ):
         # Must be explictly.
         master, frames = image
@@ -205,29 +224,15 @@ class Character(
 
         self.move_x_rate = 6
         self.move_y_rate = 6
+        # Test for more generic way to limit firerate.
+        self.gcd = 0 # A player is permitted to fire if gcd <= 0.
 
         self.fire_rate = 12
         self.last_fire = now
         # New attr mechanism.-----------------------------------------
-        self.attrs = attrs
+        self.attrs = copy.deepcopy(attrs) # Avoid reference to the object.
         # ------------------------------------------------------------
-
-        # ------------------------------------------------------------
-        self.Hp = resource.default_player_hp(
-            init_time=now
-        )
-        self.Charge = resource.default_player_charge(
-            init_time=now
-        )
-        self.ult = resource.default_player_ultimate(
-            init_time=now
-        )
-        # ------------------------------------------------------------
-        self._resource_list = [
-            self.Charge,
-            self.ult,
-            self.Hp
-            ]
+        self.camp = camp
         # Overwritting attrs from 'NewCore'---------------------------
         self.fps = 24
         self.last_draw = now
@@ -248,7 +253,6 @@ class Character(
 
         if keypress[pygame.K_k] and not self.ult_active:
             # Cast charged skill.
-            # ratio = self.Charge.ratio
             ratio = self.attrs[resource.CHARGE].ratio
             if ratio == 1:
                 # ----------------------------------------------------
@@ -285,21 +289,18 @@ class Character(
                         y=eff_bar.top,
                         image=new_flash
                         )
-                    # hit.Hp.current_val -= 120
-                    hit.attrs[resource.HP].current_val -= 120
+                    hit.attrs[resource.HP] -= 120
                     # Only when the skill hits enemy then energy consume.
-                    # self.Charge._to_zero()
                     self.attrs[resource.CHARGE]._to_zero()
-                    # self.ult.charge(120)
-                    self.attrs[resource.ULTIMATE].charge(120)
+                    self.attrs[resource.ULTIMATE] += 120
                 else:
                     pass
                 # ----------------------------------------------------
 
         # Ultimate.---------------------------------------------------
+        # The lock mechanism.
         if keypress[pygame.K_u] and not self.ult_active:
             if self.attrs[resource.ULTIMATE].ratio == 1:
-                # if self.ult.ratio == 1:
                 print("<Ultimate activated>")
                 self.ult_active = True
             else:
@@ -313,15 +314,13 @@ class Character(
            and self.ult_active \
            and (self.attrs[resource.ULTIMATE].ratio != 0):
             self._laser()
-            # self.ult.current_val -= 13
-            self.attrs[resource.ULTIMATE].current_val -= 13
+            self.attrs[resource.ULTIMATE] -= 13
         else:
             if self.ult_active == True:
                 self.ult_active = False
                 print((
                     "<Ultimate deactiveted,"
                     " remaining energy: {u_ratio:.2f}%>".format(
-                        # u_ratio=self.ult.ratio * 100
                         u_ratio=self.attrs[resource.ULTIMATE].ratio * 100
                         )
                     ))
@@ -343,6 +342,8 @@ class Character(
 
     def _create_bullet(self, projectile_group):
         # Use identifier instead of group??
+        # if self.gcd >= 0:
+        #     return
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
 
@@ -361,6 +362,7 @@ class Character(
             shooter=self
         )
         projectile_group.add(bullet)
+        # self.gcd += bullet.cooldown
         return
 
     def _laser(self):
@@ -379,8 +381,7 @@ class Character(
             )
         for enemy in enemy_group:
             if rect.colliderect(enemy.rect):
-                # enemy.Hp.current_val -= 10
-                enemy.attrs[resource.HP].current_val -= 10
+                enemy.attrs[resource.HP] -= 10
         for host_proj in hostile_projectile_group:
             if rect.colliderect(host_proj):
                 hostile_projectile_group.remove(host_proj)
@@ -390,8 +391,11 @@ class Character(
         '''Push character to next status.'''
         # Inheritate from 'animation.NewCore'.
         self.to_next_frame(current_time)
-        # for res in self._resource_list:
-        #     res.recover(current_time)
+        # New firerate limit mechanism.-------------------------------
+        self.gcd -= clock.get_rawtime()
+        if self.gcd < 0:
+            self.gcd = 0
+        # ------------------------------------------------------------
         for res in self.attrs.values():
             res.recover(current_time)
         return
@@ -403,13 +407,20 @@ class Mob(
         animation.NewCore
     ):
     '''Create mob object that oppose to player.'''
+    '''Dependencies
+        Depends on:
+            (1) screen
+            (2) abilities
+            (3) projectile_group(hostile_project_group)
+    '''
     def __init__(
             self,
             *,
             init_x=0,
             init_y=0,
             image=None,
-            attrs=None
+            attrs=None,
+            camp=None
         ):
         master, frames = image
         pygame.sprite.Sprite.__init__(self)
@@ -431,21 +442,12 @@ class Mob(
         # New attr.---------------------------------------------------
         self.attrs = attrs
         # ------------------------------------------------------------
-        # ------------------------------------------------------------
-        self.Hp = resource.default_enemy_hp(
-            init_time=now
-        )
-        # ------------------------------------------------------------
-        self._resource_list = [
-            self.Hp
-            ]
-
+        self.camp = camp
         # Overwriting params from 'NewCore'.--------------------------
         self.fps = 24
         self.last_draw = now
 
     def _draw_hpbar(self):
-        # hp_ratio = int(100 * self.Hp.ratio)
         hp_ratio = int(self.attrs[resource.HP].ratio * 100)
         bar = pygame.rect.Rect(
             0, 0, hp_ratio, 6
@@ -481,11 +483,88 @@ class Mob(
 
     def update(self, current_time):
         self.to_next_frame(current_time)
-        # for res in self._resource_list:
-        #     res.recover(current_time)
         for res in self.attrs.values():
             res.recover(current_time)
         self._draw_hpbar()
+
+# Skill handler.------------------------------------------------------
+'''Psuedo code:
+
+def normalfire(?):
+    Dependency:
+        bullet handler
+        shooter
+        *AnimationHandler
+    create a bullet
+    add to projectile_group
+    add gcd
+
+def railgun(?):
+    Dependency:
+        enemy sprite group
+        shooter
+        *AnimationHandler
+    check the nearest hostile sprite
+    draw a beam that ends at the sprite
+    damage sprite once
+    consume energy(in sprite)
+    add gcd
+
+def laserbeam(?):
+    Dependency:
+        enemy sprite group
+        hostile projectile group
+        shoooter
+        *AnimationHandler
+    draw a beam
+    attack all hostile sprites
+    destroy all hostile bullets
+    damage once per tick
+    consume energe
+    add gcd
+
+Every skill has:
+    its function.
+    cooldown -> add to 'until_next_fire'(or 'gcd')?
+        *We use energy mechanism here, so cooldown could be None or 0,
+         this could add to 'global cooldown'(gcd).
+
+How to access:
+    Store them in a dict.
+        -> What about the params and resource they need?
+
+class SkillHandler():
+
+    def __init__(
+            self,
+            *,
+            sprite=None,
+            projectile_handler=None,
+            animation_handler=None,
+            clock=None
+        ):
+        self.sprite = sprite
+        self.projectile_handler = projectile_handler
+        self.clock = clock
+
+    def keyevent(self, keypress):
+        React to specific keypress.
+    or:
+    def __call__(self, keypress):
+        React ot specific keypress.
+
+
+Using of SkillHandler:
+    Skillhandler = SkillHandler(...)
+    character = Character(...)
+    player = PlayerInterface(
+        player=character,
+        skill=Skillhandler
+    )
+    player.keyevents(keypress)
+        # Calls the skill handler and move.
+
+'''
 
 # Indicator.----------------------------------------------------------
 # New HUD is planning.
@@ -515,7 +594,6 @@ class Indicator(
             master=master,
             frames=frames
             )
-        # self.resource = getattr(sprite, resource_name)
         self.resource = sprite.attrs[resource_name]
         self.sprite = sprite
 
@@ -567,10 +645,26 @@ player = Character(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery + 100,
     image=new_ufo,
-    attrs=PLAYER_ATTRS
+    attrs=PLAYER_ATTRS,
+    camp=Camp.PLAYER
     )
 player_group.add(player)
+# TEST.---------------------------------------------------------------
+# Temporary disabled.
+# TEST_ENEMY = Mob(
+#     init_x=screen_rect.w / 2,
+#     init_y=screen_rect.h / 2,
+#     image=new_ufo,
+#     attrs=copy.deepcopy(ENEMY_ATTRS)
+# )
+# tracker = weakref.finalize(
+#     TEST_ENEMY,
+#     print,
+#     "<Test subject has been collected.>"
+#     )
 
+# enemy_group.add(TEST_ENEMY)
+# TEST.---------------------------------------------------------------
 blank100 = animation.sequential_loader(w=100, h=100)
 
 ult = Indicator(
@@ -670,13 +764,23 @@ def draw_boxes():
 
 class MobHandle():
     '''Managing group logics of Mob.'''
+    '''Dependencies
+        Depends on:
+            (1) screen
+            (2) Mob(class)
+            (3) ENEMY_ATTRS
+            (4) AnimationHandler
+            (5) dice
+            (6) Camp
+    '''
     def __init__(
             self,
             *,
             group=None,
             animation_handler=None,
             spawn_interval=1,
-            max_amount=10
+            max_amount=10,
+            camp=None
         ):
         now = pygame.time.get_ticks()
         self.group = group
@@ -684,6 +788,7 @@ class MobHandle():
         self.next_spawn = now + spawn_interval * 1000
         self.spawn_interval = spawn_interval * 1000
         self.max_amount = max_amount
+        self.camp = camp
 
     def refresh(self):
         # Psuedo code:
@@ -695,6 +800,7 @@ class MobHandle():
         if self.group is None:
             return
         reset_next_spawn = lambda: current_time + self.spawn_interval
+        # The absolute spawntime, maybe relative spawntime is better?
         current_time = pygame.time.get_ticks()
 
         self.group.update(current_time)
@@ -718,12 +824,18 @@ class MobHandle():
             init_x=safe_x_pos(),
             init_y=safe_y_pos(),
             image=new_ufo,
-            attrs=copy.deepcopy(ENEMY_ATTRS)
+            attrs=copy.deepcopy(ENEMY_ATTRS),
+            camp=self.camp
             )
+        # Tracking object lifespan.-----------------------------------
+        weakref.finalize(
+            enemy,
+            print,
+            f"<Enemy({id(enemy)}) spawn by handler has been collected.>"
+            )
+        # ------------------------------------------------------------
         while True:
-            # Add check(Psuedo code):
-            #   if enemy.rect collides existing enemy:
-            #     retry
+            # Try until the new sprite's rect does not overlap the existings.
             if not pygame.sprite.spritecollide(
                     enemy,
                     self.group,
@@ -742,7 +854,7 @@ class MobHandle():
         global KILL_COUNT # Be aware!
         for hostile in self.group:
             if hostile.attrs[resource.HP].current_val <= 0:
-                # if hostile.Hp.current_val <= 0:
+                # Override '__le__' method?
                 self.group.remove(hostile)
                 KILL_COUNT += 1 # Global variable.
                 x, y = hostile.rect.center
@@ -758,6 +870,8 @@ class MobHandle():
     def _attack_random(self, chance):
         '''Attack with n percent of chance.'''
         for hostile in self.group:
+            # Replace by a relative timer?
+            # ex: a dict with sprite-'until_next_fire' or attr 'until_next_fire'?
             if dice(chance):
                 hostile.attack(hostile_projectile_group)
                 # Play shooting sound here.
@@ -787,7 +901,8 @@ enemy_bullets = abilities.BulletHandle(
 MobHandler = MobHandle(
     group=enemy_group,
     animation_handler=AnimationHandler,
-    max_amount=17
+    max_amount=17,
+    camp=Camp.ENEMY
     )
 
 # Elapsed time.
@@ -888,7 +1003,6 @@ def dev_info(events):
                 color=cfg.color.black
                 )
             show_text(
-                # player.Hp,
                 player.attrs[resource.HP],
                 170,
                 490,
@@ -901,7 +1015,6 @@ def dev_info(events):
         for enemy in enemy_group:
             x, y = enemy.rect.bottomright
             show_text(
-                # enemy.Hp,
                 enemy.attrs[resource.HP],
                 x,
                 y,

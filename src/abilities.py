@@ -7,8 +7,11 @@ import resource
 
 # Notes.--------------------------------------------------------------
 '''
-    1.Add penetratable bullets.
-    2.Add laser.(Added in main module, in 'Character'.)
+    1. Add penetratable bullets.
+    2. Add laser.(Added in main module, in 'Character'.)
+    3. Depends outer object:
+        (1) screen(from pygame.display.set_mode(...))
+        (2) animation_handler(possible)
 '''
 #--------------------------------------------------------------------
 
@@ -96,7 +99,7 @@ class Linear(
             init_y=0,
             direct=-1,
             speed=420, # px per second.
-            dmg=20,
+            dmg=20, # Add a 'target camp' param?
             shooter=None,
             image=None
         ):
@@ -115,16 +118,6 @@ class Linear(
         self.chargable = True
         self.cooldown = 12**-1 * 1000 # ms -> s
 
-        # Just taking place for future.-------------------------------
-        self.hit_count = 0
-        self.hit_interval = 0.1
-        self.hit_target = []
-        self.combo = False
-        self.combo_count = 0
-        self.combo_max = 0
-        self.spawn_time = now
-        # ------------------------------------------------------------
-
         self.rect.center = init_x, init_y
         self.direct = int(direct/abs(direct))
         self.speed_y = speed
@@ -140,7 +133,13 @@ class Linear(
         self.rect.centery = int(self.float_y)
         return
 
-
+'''Note
+    Q: If use identifier, how bullet hits?
+        A1: If a bullet meets a sprite that has different camp or target camp,
+            attack it; If so, we have to set target camp of a bullet when it's
+            been create.
+        A2: (pass)
+'''
 class BulletHandle():
     """Manage general actions of projectiles."""
     @_check_init
@@ -149,7 +148,7 @@ class BulletHandle():
             *,
             shooter=None,
             group=None,
-            target_group=None,
+            target_group=None, # change to 'target_camp'?
             collide_coef=1,
             on_hit=None
         ):
@@ -179,8 +178,7 @@ class BulletHandle():
                 collided=pygame.sprite.collide_rect_ratio(ratio)
                 )
             for collided in collides:
-                collided.attrs[resource.HP].current_val -= proj.dmg
-                # collided.Hp.current_val -= proj.dmg
+                collided.attrs[resource.HP] -= proj.dmg
                 self._ult_feedback(proj.dmg)
                 self.group.remove(proj)
 
@@ -192,18 +190,11 @@ class BulletHandle():
         return
 
     def _ult_feedback(self, val=0):
-        # Not a good idea.
         shooter = self.shooter # Pass by reference.
         if shooter is None:
             return
         else:
-            # if hasattr(shooter, 'ult'):
-            #     shooter.ult.charge(val)
-            # if resource.ULTIMATE in shooter.attrs:
-            #     shooter.attrs[resource.ULTIMATE].charge(val)
-            # or:
             res = shooter.attrs[resource.ULTIMATE]
             if res != resource.INVALID:
-                # res.charge(val)
                 res += val # Test OK.
         return
