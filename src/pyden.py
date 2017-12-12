@@ -564,6 +564,23 @@ Using of SkillHandler:
     player.keyevents(keypress)
         # Calls the skill handler and move.
 
+
+class PlayerInterface():
+    
+    def __init__(
+            self,
+            *,
+            sprite=None,
+            skill=None
+        ):
+        self.sprite = sprite
+        self.skill = None
+
+    def keyevents(self, keypress):
+        self.sprite.move(keypress)
+        self.skill.keyevents(keypress)
+
+
 '''
 
 # Indicator.----------------------------------------------------------
