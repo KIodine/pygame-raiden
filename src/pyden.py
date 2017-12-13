@@ -6,6 +6,7 @@ import math
 import time
 import copy
 import weakref # Analyzing object lifespan.
+import logging
 from collections import deque, namedtuple
 from enum import Enum
 # Third-party.--------------------------------------------------------
@@ -15,8 +16,9 @@ import config as cfg
 import animation
 import abilities
 import resource
+import characters
 
-# Pyden 0.42.3
+# Pyden 0.42.5
 '''Notes:
     1. Seperate actions from player for further develope.
         Add a 'Interface' class could be a solution, but clarify its structure
@@ -26,12 +28,12 @@ import resource
         related module?
     4. 'Character', 'Mob', 'MobHandle' and someother are coupled with
         'animation.AnimationHandle'(Note-3)
-    5. Use custom identifier than seperate group?
+    5. (OK)Use custom identifier than seperate group?
 '''
 
 _zero = time.perf_counter() # Reference point.
 
-dice = lambda chn: True if chn > random.random() * 100 else False
+logging.basicConfig(level=logging.DEBUG)
 
 # Set constants.------------------------------------------------------
 
@@ -68,30 +70,25 @@ screen_rect = screen.get_rect()
 
 # Init containers.----------------------------------------------------
 
-player_group = pygame.sprite.Group()
-enemy_group = pygame.sprite.Group()
-projectile_group = pygame.sprite.Group()
-hostile_projectile_group = pygame.sprite.Group()
+sprite_group = pygame.sprite.Group() # Universal.
+projectile_group = pygame.sprite.Group() # Universal.
+
 animated_object_group = pygame.sprite.Group()
 HUD_group = pygame.sprite.Group()
 
 ALL_GROUPS = list()
 ALL_GROUPS.extend(
     [
-        player_group,
-        enemy_group,
+        sprite_group,
         projectile_group,
-        hostile_projectile_group,
         animated_object_group,
         HUD_group
     ]
 )
-# No actual effect right now.
-class Camp(Enum):
-    """Camp identifier."""
-    PLAYER = 0
-    ENEMY = 1
-    NEUTRAL = 2
+# Identifier for camp.
+CampID = characters.CampID
+# Identifier for resource.
+ResID = resource.ResID
 
 # Load resources.-----------------------------------------------------
 
@@ -173,16 +170,15 @@ def show_text(
 
 PLAYER_ATTRS = resource.RES_DICT(
     {
-        resource.HP: resource.default_player_hp(),
-        resource.CHARGE: resource.default_player_charge(),
-        resource.ULTIMATE: resource.default_player_ultimate()
+        ResID.HP: resource.default_player_hp(),
+        ResID.CHARGE: resource.default_player_charge(),
+        ResID.ULTIMATE: resource.default_player_ultimate()
     }
 )
 
-
 ENEMY_ATTRS = resource.RES_DICT(
     {
-        resource.HP: resource.default_enemy_hp()
+        ResID.HP: resource.default_enemy_hp()
     }
 )
 
@@ -207,11 +203,10 @@ class Character(
             init_y=0,
             image=None,
             attrs=None, # Add a 'camp' param to identify its group?
-            camp=None
+            camp=None,
+            enemy=None
         ):
-        # Must be explictly.
         master, frames = image
-        # Due to the need of initial params, initialize parent explictly.
         pygame.sprite.Sprite.__init__(self)
         animation.NewCore.__init__(
             self,
@@ -233,6 +228,7 @@ class Character(
         self.attrs = copy.deepcopy(attrs) # Avoid reference to the object.
         # ------------------------------------------------------------
         self.camp = camp
+        self.enemy = enemy
         # Overwritting attrs from 'NewCore'---------------------------
         self.fps = 24
         self.last_draw = now
@@ -249,79 +245,37 @@ class Character(
 
         if keypress[pygame.K_j] and not self.ult_active:
             # Cast normal attack.
-            self._create_bullet(projectile_group)
+            self.create_bullet(projectile_group)
+            return
 
         if keypress[pygame.K_k] and not self.ult_active:
             # Cast charged skill.
-            ratio = self.attrs[resource.CHARGE].ratio
-            if ratio == 1:
-                # ----------------------------------------------------
-                # Issue: The beam stays too short on screen.
-                rect = self.rect
-                w = 5
-                h = rect.top
-                x = rect.centerx - w / 2
-                y = 0
-                check_rect = pygame.Rect(
-                    (x, y), (w, h)
-                    )
-                collide_list = [
-                    sprite for sprite in enemy_group
-                    if check_rect.colliderect(sprite.rect)
-                    ]
-                if collide_list:
-                    collide_list.sort(
-                        key=lambda sprite: sprite.rect.centery - rect.centery,
-                        reverse=True
-                        )
-                    hit = collide_list[0]
-                    top = hit.rect.bottom
-                    eff_bar = pygame.Rect(
-                        (x, top), (w, h - top)
-                        )
-                    pygame.draw.rect(
-                        screen,
-                        (255, 255, 0),
-                        eff_bar
-                        )
-                    AnimationHandler.draw_single(
-                        x=eff_bar.centerx,
-                        y=eff_bar.top,
-                        image=new_flash
-                        )
-                    hit.attrs[resource.HP] -= 120
-                    # Only when the skill hits enemy then energy consume.
-                    self.attrs[resource.CHARGE]._to_zero()
-                    self.attrs[resource.ULTIMATE] += 120
-                else:
-                    pass
-                # ----------------------------------------------------
+            self.railgun()
+            return
 
-        # Ultimate.---------------------------------------------------
-        # The lock mechanism.
         if keypress[pygame.K_u] and not self.ult_active:
-            if self.attrs[resource.ULTIMATE].ratio == 1:
+            if self.attrs[ResID.ULTIMATE].ratio == 1:
                 print("<Ultimate activated>")
                 self.ult_active = True
             else:
                 print(
                     "<Insufficient energy: {}>".format(
-                        self.attrs[resource.HP].ratio
+                        self.attrs[ResID.ULTIMATE].ratio
                     )
                 )
 
         if keypress[pygame.K_u] \
            and self.ult_active \
-           and (self.attrs[resource.ULTIMATE].ratio != 0):
-            self._laser()
-            self.attrs[resource.ULTIMATE] -= 13
+           and (self.attrs[ResID.ULTIMATE].ratio != 0):
+            self.laser()
+            self.attrs[ResID.ULTIMATE] -= 13
         else:
             if self.ult_active == True:
                 self.ult_active = False
                 print((
                     "<Ultimate deactiveted,"
                     " remaining energy: {u_ratio:.2f}%>".format(
-                        u_ratio=self.attrs[resource.ULTIMATE].ratio * 100
+                        u_ratio=self.attrs[ResID.ULTIMATE].ratio * 100
                         )
                     ))
         # ------------------------------------------------------------
@@ -340,7 +294,7 @@ class Character(
             self.rect.move_ip(self.move_x_rate, 0)
         return
 
-    def _create_bullet(self, projectile_group):
+    def create_bullet(self, projectile_group):
         # Use identifier instead of group??
         # if self.gcd >= 0:
         #     return
@@ -359,13 +313,14 @@ class Character(
             image=image,
             speed=1050,
             dmg=22,
+            camp=self.camp,
             shooter=self
         )
         projectile_group.add(bullet)
         # self.gcd += bullet.cooldown
         return
 
-    def _laser(self):
+    def laser(self):
         bottom = self.rect.top - 8
         top = 0
         w = 14
@@ -379,13 +334,68 @@ class Character(
             (0, 255, 0),
             rect
             )
-        for enemy in enemy_group:
+        # Test filter.------------------------------------------------
+        # CID filter in '_laser'.
+        enemies = [
+            sprite for sprite in sprite_group
+            if sprite.camp == CampID.ENEMY
+        ]
+        host_ps = [
+            projectile for projectile in projectile_group
+            if projectile.camp == CampID.ENEMY
+        ]
+        # ------------------------------------------------------------
+        for enemy in enemies:
             if rect.colliderect(enemy.rect):
-                enemy.attrs[resource.HP] -= 10
-        for host_proj in hostile_projectile_group:
+                enemy.attrs[ResID.HP] -= 10
+        for host_proj in host_ps:
             if rect.colliderect(host_proj):
-                hostile_projectile_group.remove(host_proj)
+                projectile_group.remove(host_proj)
         return
+
+    def railgun(self):
+        ratio = self.attrs[ResID.CHARGE].ratio
+        if ratio != 1:
+            return
+        else:
+            rect = self.rect
+            w = 5
+            h = rect.top
+            x = rect.centerx - w / 2
+            y = 0
+            check_rect = pygame.Rect(
+                (x, y), (w, h)
+                )
+            # CID filter in 'railgun'.
+            collide_list = [
+                sprite for sprite in sprite_group
+                if check_rect.colliderect(sprite.rect)
+                if sprite.camp == CampID.ENEMY
+                ]
+            if collide_list:
+                collide_list.sort(
+                    key=lambda sprite: sprite.rect.centery - rect.centery,
+                    reverse=True
+                    )
+                hit = collide_list[0]
+                top = hit.rect.bottom
+                eff_bar = pygame.Rect(
+                    (x, top), (w, h - top)
+                    )
+                pygame.draw.rect(
+                    screen,
+                    (255, 255, 0),
+                    eff_bar
+                    )
+                AnimationHandler.draw_single(
+                    x=eff_bar.centerx,
+                    y=eff_bar.top,
+                    image=new_flash
+                    )
+                hit.attrs[ResID.HP] -= 120
+                # Only when the skill hits enemy then energy consume.
+                self.attrs[ResID.CHARGE]._to_zero()
+                self.attrs[ResID.ULTIMATE] += 120
 
     def update(self, current_time):
         '''Push character to next status.'''
@@ -437,18 +447,18 @@ class Mob(
 
         now = pygame.time.get_ticks() # Get current time.
 
-        self.fire_rate = 1
-        self.last_fire = now
-        # New attr.---------------------------------------------------
+        self.until_next_fire = 0
+        self.ready_to_fire = True
+
         self.attrs = attrs
-        # ------------------------------------------------------------
+
         self.camp = camp
         # Overwriting params from 'NewCore'.--------------------------
         self.fps = 24
         self.last_draw = now
 
     def _draw_hpbar(self):
-        hp_ratio = int(self.attrs[resource.HP].ratio * 100)
+        hp_ratio = int(self.attrs[ResID.HP].ratio * 100)
         bar = pygame.rect.Rect(
             0, 0, hp_ratio, 6
             )
@@ -465,9 +475,10 @@ class Mob(
     def attack(self, projectile_group):
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
-        if now - self.last_fire > self.fire_rate**-1 * 1000:
-            self.last_fire = now
-            pass
+        rd_next = lambda: random.randint(500, 1300)
+        if self.ready_to_fire:
+            self.ready_to_fire = False
+            self.until_next_fire += rd_next()
         else:
             return
         image = abilities.default_bullet(color=(255, 150, 0))
@@ -476,6 +487,7 @@ class Mob(
             init_x=x+b_shift(),
             init_y=y+8,
             direct=1,
+            camp=self.camp,
             image=image,
         )
         projectile_group.add(bullet)
@@ -485,9 +497,16 @@ class Mob(
         self.to_next_frame(current_time)
         for res in self.attrs.values():
             res.recover(current_time)
+        if not self.ready_to_fire:
+            # Relative mode.
+            self.until_next_fire -= clock.get_rawtime()
+            if self.until_next_fire <= 0:
+                self.until_next_fire = 0
+                self.ready_to_fire = True
         self._draw_hpbar()
 
 # Skill handler.------------------------------------------------------
+# INTERFACE
 '''Psuedo code:
 
 def normalfire(?):
@@ -571,10 +590,12 @@ class PlayerInterface():
             self,
             *,
             sprite=None,
+            hostile_camp=None,
             skill=None
         ):
         self.sprite = sprite
         self.skill = None
+        self.hostile_camp = hostile_camp
 
     def keyevents(self, keypress):
         self.sprite.move(keypress)
@@ -599,7 +620,7 @@ class Indicator(
             arc_color=(47, 89, 158, 190),
             rim_color=(0, 255, 255, 215),
             sprite=None,
-            resource_name='', # Will be resource flag and change to 'resource_flag'.
+            ResID='', # Input ResIDs.
             image=None
         ):
         if not sprite:
@@ -611,7 +632,7 @@ class Indicator(
             master=master,
             frames=frames
             )
-        self.resource = sprite.attrs[resource_name]
+        self.resource = sprite.attrs[ResID]
         self.sprite = sprite
 
         self.rect.topleft = x_pos, y_pos
@@ -663,32 +684,19 @@ player = Character(
     init_y=screen_rect.centery + 100,
     image=new_ufo,
     attrs=PLAYER_ATTRS,
-    camp=Camp.PLAYER
+    camp=CampID.PLAYER,
+    enemy=CampID.ENEMY
     )
-player_group.add(player)
-# TEST.---------------------------------------------------------------
-# Temporary disabled.
-# TEST_ENEMY = Mob(
-#     init_x=screen_rect.w / 2,
-#     init_y=screen_rect.h / 2,
-#     image=new_ufo,
-#     attrs=copy.deepcopy(ENEMY_ATTRS)
-# )
-# tracker = weakref.finalize(
-#     TEST_ENEMY,
-#     print,
-#     "<Test subject has been collected.>"
-#     )
 
-# enemy_group.add(TEST_ENEMY)
-# TEST.---------------------------------------------------------------
+sprite_group.add(player)
+
 blank100 = animation.sequential_loader(w=100, h=100)
 
 ult = Indicator(
     x_pos=screen_rect.w-180,
     y_pos=screen_rect.h-170,
     border_expand=80,
-    resource_name=resource.ULTIMATE, # resource.ULTIMATE
+    ResID=ResID.ULTIMATE,
     sprite=player,
     image=blank100
     )
@@ -699,7 +707,7 @@ charge = Indicator(
     x_pos=screen_rect.w-350,
     y_pos=screen_rect.h-110,
     border_expand=50,
-    resource_name=resource.CHARGE, # resource.CHARGE
+    ResID=ResID.CHARGE,
     sprite=player,
     image=blank75
     )
@@ -709,7 +717,7 @@ HP_monitor = Indicator(
     x_pos=60,
     y_pos=515,
     border_expand=50,
-    resource_name=resource.HP, # resource.HP
+    ResID=ResID.HP,
     arc_color=(25, 221, 0, 240),
     sprite=player,
     image=blank80
@@ -725,38 +733,28 @@ HUD_group.add(
 
 def draw_boxes():
     '''Drawing outline of rects.'''
-    for player in player_group:
+    for sprite in sprite_group:
+        if sprite.camp == CampID.PLAYER:
+            fcolor = (0, 255, 0)
+        elif sprite.camp == CampID.ENEMY:
+            fcolor = (255, 0, 0)
         frame = pygame.draw.rect(
             screen,
-            (0, 255, 0),
-            player.rect,
+            fcolor,
+            sprite.rect,
             1
-            )
-        pass
-    for enemy in enemy_group:
-        frame = pygame.draw.rect(
-            screen,
-            (255, 0, 0), # red for enemy.
-            enemy.rect,
-            1
-            )
-        pass
-    for host_proj in hostile_projectile_group:
-        frame = pygame.draw.rect(
-            screen,
-            (255, 0, 0),
-            host_proj.rect.inflate(2, 2),
-            1
-            )
-        pass
+        )
     for proj in projectile_group:
+        if proj.camp == CampID.PLAYER:
+            fcolor = (0, 255, 0)
+        elif proj.camp == CampID.ENEMY:
+            fcolor = (255, 0, 0)
         frame = pygame.draw.rect(
             screen,
-            (255, 0, 0),
+            fcolor,
             proj.rect.inflate(2, 2),
             1
             )
-        pass
     for eff in animated_object_group:
         frame = pygame.draw.rect(
             screen,
@@ -764,7 +762,6 @@ def draw_boxes():
             eff.rect,
             1
             )
-        pass
     for ui in HUD_group:
         frame = pygame.draw.rect(
             screen,
@@ -774,8 +771,6 @@ def draw_boxes():
             )
         pass
     return
-
-# Handlers.-----------------------------------------------------------
 
 # MobHandle.----------------------------------------------------------
 
@@ -788,7 +783,7 @@ class MobHandle():
             (3) ENEMY_ATTRS
             (4) AnimationHandler
             (5) dice
-            (6) Camp
+            (6) CampID
     '''
     def __init__(
             self,
@@ -808,33 +803,30 @@ class MobHandle():
         self.camp = camp
 
     def refresh(self):
-        # Psuedo code:
-        # if there is space for spawn, wait for 'spawn_interval':
-        #   spawn_enemy()
-        #   if spawned, set 'next_spawn' as 'current_time' + 'spawn_interval'
-        # if there is no space for spawn, set 'next_spawn' as
-        #   'current_time' + 'spawn_interval'
         if self.group is None:
             return
         reset_next_spawn = lambda: current_time + self.spawn_interval
         # The absolute spawntime, maybe relative spawntime is better?
         current_time = pygame.time.get_ticks()
 
-        self.group.update(current_time)
-        self.group.draw(screen)
+        self.clear_deadbody(current_time)
+        self.attack_random(5)
 
-        self._clear_deadbody(current_time)
-        self._attack_random(5)
+        group = [
+            sprite for sprite in self.group
+            if sprite.camp == self.camp
+        ]
 
-        if len(self.group) < self.max_amount:
+        if len(group) < self.max_amount:
             if current_time > self.next_spawn:
-                self._spawn_random_pos()
+                self.spawn_random_pos()
                 self.next_spawn = reset_next_spawn() # Reset.
         else:
             self.next_spawn = reset_next_spawn()
         return
 
-    def _spawn_random_pos(self):
+    def spawn_random_pos(self):
+        """Spawn a mob at random place without overlap the others."""
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
         safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
         enemy = Mob(
@@ -866,12 +858,16 @@ class MobHandle():
         self.group.add(enemy)
         return
 
-    def _clear_deadbody(self, current_time):
+    def clear_deadbody(self, current_time):
         '''Clear hostile that 'Hp' less/equal than zero.'''
         global KILL_COUNT # Be aware!
-        for hostile in self.group:
-            if hostile.attrs[resource.HP].current_val <= 0:
-                # Override '__le__' method?
+        # CID filter in '_clear_deadbody'
+        group = [
+            sprite for sprite in self.group
+            if sprite.camp == self.camp
+        ]
+        for hostile in group:
+            if hostile.attrs[ResID.HP].current_val <= 0:
                 self.group.remove(hostile)
                 KILL_COUNT += 1 # Global variable.
                 x, y = hostile.rect.center
@@ -884,14 +880,26 @@ class MobHandle():
             pass
         return
 
-    def _attack_random(self, chance):
+    def attack_random(self, chance):
         '''Attack with n percent of chance.'''
-        for hostile in self.group:
-            # Replace by a relative timer?
-            # ex: a dict with sprite-'until_next_fire' or attr 'until_next_fire'?
-            if dice(chance):
-                hostile.attack(hostile_projectile_group)
-                # Play shooting sound here.
+        # Filter sprite by CIDfilter.
+        cid_group = characters.CIDfilter(self.group, self.camp)
+        ready_group = [
+            sprite for sprite in cid_group
+            if sprite.ready_to_fire
+            ]
+        member_count = len(ready_group)
+        k = member_count if member_count < 5 else 5
+        for hostile in random.choices(ready_group, k=k):
+            hostile.attack(projectile_group)
+            logging.debug(
+                (
+                    f"Hostile({id(hostile)}) attacked, "
+                    f"until next fire: {hostile.until_next_fire} ms."
+                )
+            )
+
+
 
 # Init handlers.------------------------------------------------------
 
@@ -902,24 +910,28 @@ AnimationHandler = animation.AnimationHandle(
 
 player_bullets = abilities.BulletHandle(
     shooter=player,
-    group=projectile_group,
-    target_group=enemy_group,
+    camp=CampID.PLAYER,
+    proj_group=projectile_group,
+    sprite_group=sprite_group,
+    target_camp=CampID.ENEMY,
     collide_coef=1.2,
     on_hit=flash
     )
 
 enemy_bullets = abilities.BulletHandle(
-    group=hostile_projectile_group,
-    target_group=player_group,
+    proj_group=projectile_group, # projectile_group
+    camp=CampID.ENEMY,
+    sprite_group=sprite_group,
+    target_camp=CampID.PLAYER,
     collide_coef=0.7,
     on_hit=flash
     )
 
 MobHandler = MobHandle(
-    group=enemy_group,
+    group=sprite_group, # sprite_group
     animation_handler=AnimationHandler,
     max_amount=17,
-    camp=Camp.ENEMY
+    camp=CampID.ENEMY
     )
 
 # Elapsed time.
@@ -947,34 +959,20 @@ def hotkey_actions(events):
             if key == pygame.K_ESCAPE:
                 RUN_FLAG = False
                 print("<Exit by 'ESC' key>")
-                pass
 
             if key == pygame.K_F2:
                 # Enable/disable develope mode.
                 DEV_MODE = not DEV_MODE
                 print(f"<DEV_MODE={DEV_MODE}>")
-                pass
 
             if key == pygame.K_F3:
                 print("<Charge resource to max>")
-                for p_res in player.attrs.values():
-                    p_res._to_max()
-                for e in enemy_group:
-                    for e_res in e.attrs.values():
-                        e_res._to_max()
-                # for p_res in player._resource_list:
-                #     p_res._to_max()
-                # for e in enemy_group:
-                #     for e_res in e._resource_list:
-                #         e_res._to_max()
-                #         pass
-                #     pass
-                pass
+                for sprite in sprite_group:
+                    for res in sprite.attrs.values():
+                        res._to_max()
 
             if key == pygame.K_F4:
-                # player.Hp.current_val -= 50
-                player.attrs[resource.HP].current_val -= 50
-                pass
+                player.attrs[ResID.HP] -= 50
 
             if key == pygame.K_p:
                 PAUSE = not PAUSE
@@ -985,9 +983,6 @@ def hotkey_actions(events):
                        and event.key == pygame.K_p:
                         PAUSE = not PAUSE
                         print("<ACTION>")
-                        pass
-                    pass
-                pass
         else:
             pass
         pass
@@ -1020,7 +1015,7 @@ def dev_info(events):
                 color=cfg.color.black
                 )
             show_text(
-                player.attrs[resource.HP],
+                player.attrs[ResID.HP],
                 170,
                 490,
                 color=cfg.color.black
@@ -1029,10 +1024,14 @@ def dev_info(events):
         return
 
     def enemy_info():
-        for enemy in enemy_group:
+        enemies = [
+            sprite for sprite in sprite_group
+            if sprite.camp == CampID.ENEMY
+        ]
+        for enemy in enemies:
             x, y = enemy.rect.bottomright
             show_text(
-                enemy.attrs[resource.HP],
+                enemy.attrs[ResID.HP],
                 x,
                 y,
                 color=cfg.color.black
@@ -1092,14 +1091,21 @@ while RUN_FLAG:
     #-----------------------------------
     keypress = pygame.key.get_pressed()
 
-    MobHandler.refresh()
+    # Update duplicate.-----------------------------------------------
     player_bullets.refresh()
     enemy_bullets.refresh()
 
+    projectile_group.update(now)
+    projectile_group.draw(screen)
+    # ----------------------------------------------------------------
+
     # Transfer to handler?
     player.actions(keypress)
-    player_group.update(now)
-    player_group.draw(screen)
+
+    sprite_group.update(now)
+    sprite_group.draw(screen)
+
+    MobHandler.refresh()
 
     AnimationHandler.refresh()
 

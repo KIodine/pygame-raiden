@@ -95,7 +95,15 @@ class Resource():
         self.current_val -= other
         return self
 
-    # Implement comparison?
+    '''
+        Implement:
+            1. __lt__
+            2. __le__
+            3. __gt__
+            4. __ge__
+            5. __eq__
+            6. __ne__
+    '''
 
     def recover(self, current_time):
         '''Recover resource over time.'''

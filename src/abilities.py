@@ -4,6 +4,7 @@ import pygame
 
 import animation
 import resource
+from characters import CampID
 
 # Notes.--------------------------------------------------------------
 '''
@@ -14,6 +15,7 @@ import resource
         (2) animation_handler(possible)
 '''
 #--------------------------------------------------------------------
+ResID = resource.ResID
 
 surface = None
 _initiated = False
@@ -100,6 +102,7 @@ class Linear(
             direct=-1,
             speed=420, # px per second.
             dmg=20, # Add a 'target camp' param?
+            camp=None,
             shooter=None,
             image=None
         ):
@@ -115,13 +118,13 @@ class Linear(
 
         self.dmg = dmg
         self.shooter = shooter
+        self.camp = camp
         self.chargable = True
         self.cooldown = 12**-1 * 1000 # ms -> s
 
         self.rect.center = init_x, init_y
         self.direct = int(direct/abs(direct))
-        self.speed_y = speed
-
+        self.speed_y = speed # Change to relative time?
         self.float_y = init_y
 
         self.fps = 24
@@ -147,14 +150,18 @@ class BulletHandle():
             self,
             *,
             shooter=None,
-            group=None,
-            target_group=None, # change to 'target_camp'?
+            camp=None,
+            proj_group=None,
+            sprite_group=None,
+            target_camp=None, # change to 'target_camp'?
             collide_coef=1,
             on_hit=None
         ):
         self.shooter = shooter
-        self.group = group
-        self.target_group = target_group
+        self.camp = camp
+        self.proj_group = proj_group
+        self.sprite_group = sprite_group
+        self.target_camp = target_camp
         self.collide_coef = collide_coef
         self.surface_rect = surface.get_rect()
         self.on_hit = on_hit
@@ -164,23 +171,29 @@ class BulletHandle():
         ratio = self.collide_coef
         now = pygame.time.get_ticks()
 
-        self.group.update(now)
-        self.group.draw(surface)
+        target_group = [
+            sprite for sprite in self.sprite_group
+            if sprite.camp == self.target_camp
+        ]
+        bullets = [
+            proj for proj in self.proj_group
+            if proj.camp == self.camp
+        ]
 
-        for proj in self.group:
+        for proj in bullets:
             if not self.surface_rect.contains(proj.rect):
-                self.group.remove(proj)
-
+                self.proj_group.remove(proj)
+                continue
             collides = pygame.sprite.spritecollide(
                 proj,
-                self.target_group,
+                target_group,
                 False,
                 collided=pygame.sprite.collide_rect_ratio(ratio)
                 )
             for collided in collides:
-                collided.attrs[resource.HP] -= proj.dmg
-                self._ult_feedback(proj.dmg)
-                self.group.remove(proj)
+                collided.attrs[ResID.HP] -= proj.dmg
+                self.ult_feedback(proj.dmg)
+                self.proj_group.remove(proj)
 
                 pos_x, pos_y = proj.rect.midtop
                 flash_w, flash_h = flash.image.get_rect().size
@@ -189,12 +202,12 @@ class BulletHandle():
                 surface.blit(flash.image, flash_pos)
         return
 
-    def _ult_feedback(self, val=0):
+    def ult_feedback(self, val=0):
         shooter = self.shooter # Pass by reference.
         if shooter is None:
             return
         else:
-            res = shooter.attrs[resource.ULTIMATE]
-            if res != resource.INVALID:
+            res = shooter.attrs[ResID.ULTIMATE]
+            if res != ResID.INVALID:
                 res += val # Test OK.
         return
