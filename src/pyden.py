@@ -59,7 +59,11 @@ clock = pygame.time.Clock()
 # Init pygame and display.--------------------------------------------
 
 npass, nfail = pygame.init()
-assert nfail == 0
+if nfail != 0:
+    if pygame.mixer.get_init() is None:
+        logging.warn("pygame mixer initialization failed.")
+    else:
+        logging.warn("Pygame component initialization failed")
 pygame.display.init()
 pygame.display.set_caption("Interstellar")
 
@@ -444,7 +448,12 @@ class Mob(
 
         self.move_x_rate = 6
         self.move_y_rate = 6
-
+        # Spring move test.-------------------------------------------
+        self.float_vx, self.float_vy = 0, 0
+        self.float_sx, self.float_sy = self.rect.center
+        self.dest_x, self.dest_y = self.rect.center
+        self.is_at_dest = True
+        # Spring move test.-------------------------------------------
         now = pygame.time.get_ticks() # Get current time.
 
         self.until_next_fire = 0
@@ -457,7 +466,7 @@ class Mob(
         self.fps = 24
         self.last_draw = now
 
-    def _draw_hpbar(self):
+    def draw_hpbar(self):
         hp_ratio = int(self.attrs[ResID.HP].ratio * 100)
         bar = pygame.rect.Rect(
             0, 0, hp_ratio, 6
@@ -493,17 +502,84 @@ class Mob(
         projectile_group.add(bullet)
         return
 
+    def set_dest(self, x, y):
+        if not self.is_at_dest:
+            return
+        self.dest_x, self.dest_y = int(x), int(y)
+        self.is_at_dest = False
+        return
+
+    def spring_move(self):
+        if self.is_at_dest:
+            return
+        rd_move_interval = lambda: random.randint(3000, 8000)
+        dest_x, dest_y = self.dest_x, self.dest_y
+        # Consts.-----------------------------------------------------
+        pd = 0.005
+        td = 0.05
+        freq = 0.2
+        epsilon = 2
+        # Consts.-----------------------------------------------------
+        x, y = self.rect.center
+        t = clock.get_rawtime()
+        def spring(
+                x, v, xt,
+                zeta, omega, h
+            ):
+            """Damped spring move."""
+            f = 1.0 + 2.0 * h * zeta * omega
+            oo = omega * omega
+            hoo = h * oo
+            hhoo = h * hoo
+            detInv = 1.0 / (f + hhoo)
+            detX = f * x + h * v + hhoo * xt
+            detV = v + hoo * (xt - x)
+            x = detX * detInv
+            v = detV * detInv
+            return x, v
+
+        def omega(f):
+            """Translate frequency to angular velocity."""
+            o = 2 * math.pi * f
+            return o
+
+        def zeta(pd, td, o):
+            """Return damping ratio according to params."""
+            k = math.log(pd) / (-o * td)
+            return k
+
+        z = zeta(pd, td, omega(freq))
+        self.float_sx, self.float_vx = spring(
+            x, self.float_vx, dest_x,
+            z, omega(freq), t
+        )
+        self.float_sy, self.float_vy = spring(
+            y, self.float_vy, dest_y,
+            z, omega(freq), t
+        )
+        self.rect.center = int(self.float_sx), int(self.float_sy)
+        # Judge.------------------------------------------------------
+        at_dest_x_fuzzy = abs(self.rect.centerx) >= abs(self.dest_x - epsilon)
+        at_dest_y_fuzzy = abs(self.rect.centery) >= abs(self.dest_y - epsilon)
+        if at_dest_x_fuzzy and at_dest_y_fuzzy:
+            logging.debug(f"<sprite({id(self)}) is at its destnation.>")
+            self.is_at_dest = True
+        # Judge.------------------------------------------------------
+        return None
+
     def update(self, current_time):
         self.to_next_frame(current_time)
+        self.spring_move()
+        dt = clock.get_rawtime()
         for res in self.attrs.values():
             res.recover(current_time)
         if not self.ready_to_fire:
             # Relative mode.
-            self.until_next_fire -= clock.get_rawtime()
+            self.until_next_fire -= dt
             if self.until_next_fire <= 0:
                 self.until_next_fire = 0
                 self.ready_to_fire = True
-        self._draw_hpbar()
+        self.draw_hpbar()
 
 # Skill handler.------------------------------------------------------
 # INTERFACE
@@ -810,7 +886,8 @@ class MobHandle():
         current_time = pygame.time.get_ticks()
 
         self.clear_deadbody(current_time)
-        self.attack_random(5)
+        self.attack_random()
+        self.move_sprite()
 
         group = [
             sprite for sprite in self.group
@@ -850,6 +927,14 @@ class MobHandle():
                     self.group,
                     False
                 ):
+                AnimationHandler.draw_multi_effects(
+                    x=enemy.rect.centerx,
+                    y=enemy.rect.centery,
+                    num=12,
+                    interval=0.05,
+                    image=new_flash,
+                    fps=6
+                )
                 break
             else:
                 if DEV_MODE:
@@ -880,7 +965,7 @@ class MobHandle():
             pass
         return
 
-    def attack_random(self, chance):
+    def attack_random(self):
         '''Attack with n percent of chance.'''
         # Filter sprite by CIDfilter.
         cid_group = characters.CIDfilter(self.group, self.camp)
@@ -892,12 +977,31 @@ class MobHandle():
         k = member_count if member_count < 5 else 5
         for hostile in random.choices(ready_group, k=k):
             hostile.attack(projectile_group)
-            logging.debug(
-                (
-                    f"Hostile({id(hostile)}) attacked, "
-                    f"until next fire: {hostile.until_next_fire} ms."
-                )
-            )
+            # logging.debug(
+            #     (
+            #         f"Hostile({id(hostile)}) attacked, "
+            #         f"until next fire: {hostile.until_next_fire} ms."
+            #     )
+            # )
+        return
+
+    def move_sprite(self):
+        safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
+        safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
+        cid_group = characters.CIDfilter(self.group, self.camp)
+        ready_group = [
+            sprite for sprite in cid_group
+            if sprite.is_at_dest is True
+        ]
+        member_count = len(ready_group)
+        k = member_count if member_count < 5 else 5
+        for sprite in random.choices(ready_group, k=k):
+            sprite.set_dest(safe_x_pos(), safe_y_pos())
+            # Seems not suit?
+            # Splitting x and y is not right, treat as 'distance',
+            # then split into x and y vector.
+        return
+
 
 
 
@@ -930,7 +1034,7 @@ enemy_bullets = abilities.BulletHandle(
 MobHandler = MobHandle(
     group=sprite_group, # sprite_group
     animation_handler=AnimationHandler,
-    max_amount=17,
+    max_amount=15,
     camp=CampID.ENEMY
     )
 
