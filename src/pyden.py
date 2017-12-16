@@ -17,6 +17,7 @@ import animation
 import abilities
 import resource
 import characters
+import ui
 
 # Pyden 0.42.5
 '''Notes:
@@ -61,9 +62,9 @@ clock = pygame.time.Clock()
 npass, nfail = pygame.init()
 if nfail != 0:
     if pygame.mixer.get_init() is None:
-        logging.warn("pygame mixer initialization failed.")
+        logging.warning("pygame mixer initialization failed.")
     else:
-        logging.warn("Pygame component initialization failed")
+        logging.warning("Pygame component initialization failed")
 pygame.display.init()
 pygame.display.set_caption("Interstellar")
 
@@ -512,6 +513,7 @@ class Mob(
     def spring_move(self):
         if self.is_at_dest:
             return
+        # This is not a correct answer.
         rd_move_interval = lambda: random.randint(3000, 8000)
         dest_x, dest_y = self.dest_x, self.dest_y
         # Consts.-----------------------------------------------------
@@ -582,103 +584,6 @@ class Mob(
         self.draw_hpbar()
 
 # Skill handler.------------------------------------------------------
-# INTERFACE
-'''Psuedo code:
-
-def normalfire(?):
-    Dependency:
-        bullet handler
-        shooter
-        *AnimationHandler
-    create a bullet
-    add to projectile_group
-    add gcd
-
-def railgun(?):
-    Dependency:
-        enemy sprite group
-        shooter
-        *AnimationHandler
-    check the nearest hostile sprite
-    draw a beam that ends at the sprite
-    damage sprite once
-    consume energy(in sprite)
-    add gcd
-
-def laserbeam(?):
-    Dependency:
-        enemy sprite group
-        hostile projectile group
-        shoooter
-        *AnimationHandler
-    draw a beam
-    attack all hostile sprites
-    destroy all hostile bullets
-    damage once per tick
-    consume energe
-    add gcd
-
-Every skill has:
-    its function.
-    cooldown -> add to 'until_next_fire'(or 'gcd')?
-        *We use energy mechanism here, so cooldown could be None or 0,
-         this could add to 'global cooldown'(gcd).
-
-How to access:
-    Store them in a dict.
-        -> What about the params and resource they need?
-
-class SkillHandler():
-
-    def __init__(
-            self,
-            *,
-            sprite=None,
-            projectile_handler=None,
-            animation_handler=None,
-            clock=None
-        ):
-        self.sprite = sprite
-        self.projectile_handler = projectile_handler
-        self.clock = clock
-
-    def keyevent(self, keypress):
-        React to specific keypress.
-    or:
-    def __call__(self, keypress):
-        React ot specific keypress.
-
-
-Using of SkillHandler:
-    Skillhandler = SkillHandler(...)
-    character = Character(...)
-    player = PlayerInterface(
-        player=character,
-        skill=Skillhandler
-    )
-    player.keyevents(keypress)
-        # Calls the skill handler and move.
-
-
-class PlayerInterface():
-    
-    def __init__(
-            self,
-            *,
-            sprite=None,
-            hostile_camp=None,
-            skill=None
-        ):
-        self.sprite = sprite
-        self.skill = None
-        self.hostile_camp = hostile_camp
-
-    def keyevents(self, keypress):
-        self.sprite.move(keypress)
-        self.skill.keyevents(keypress)
-
-
-'''
 
 # Indicator.----------------------------------------------------------
 # New HUD is planning.
@@ -1002,9 +907,6 @@ class MobHandle():
             # then split into x and y vector.
         return
 
-
-
-
 # Init handlers.------------------------------------------------------
 
 AnimationHandler = animation.AnimationHandle(
@@ -1195,6 +1097,7 @@ while RUN_FLAG:
     #-----------------------------------
     keypress = pygame.key.get_pressed()
 
+
     # Update duplicate.-----------------------------------------------
     player_bullets.refresh()
     enemy_bullets.refresh()
@@ -1208,8 +1111,28 @@ while RUN_FLAG:
 
     sprite_group.update(now)
     sprite_group.draw(screen)
-
     MobHandler.refresh()
+
+    # Testing New UI.-------------------------------------------------
+    # Note: The params and layout is not polished yet!
+    ui.expand_arc(
+        player,
+        ResID.HP,
+        screen,
+        radius=150,
+        ind_color=(0, 255, 255)
+    )
+
+    ui.full_rim(
+        player,
+        ResID.ULTIMATE,
+        screen,
+        radius=125,
+        base_angle=math.radians(90),
+        rim_color=(255, 235, 25),
+        ind_color=(0, 255, 255)
+    )
+    # ----------------------------------------------------------------
 
     AnimationHandler.refresh()
 

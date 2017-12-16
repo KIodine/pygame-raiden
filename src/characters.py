@@ -100,3 +100,100 @@ class Skills():
             self.skill_list[SID.RAILGUN]()
         elif keypress[pygame.K_u]:
             self.skill_list[SID.LASER]()
+
+'''Psuedo code:
+
+def normalfire(?):
+    Dependency:
+        bullet handler
+        shooter
+        *AnimationHandler
+    create a bullet
+    add to projectile_group
+    add gcd
+
+def railgun(?):
+    Dependency:
+        enemy sprite group
+        shooter
+        *AnimationHandler
+    check the nearest hostile sprite
+    draw a beam that ends at the sprite
+    damage sprite once
+    consume energy(in sprite)
+    add gcd
+
+def laserbeam(?):
+    Dependency:
+        enemy sprite group
+        hostile projectile group
+        shoooter
+        *AnimationHandler
+    draw a beam
+    attack all hostile sprites
+    destroy all hostile bullets
+    damage once per tick
+    consume energe
+    add gcd
+
+Every skill has:
+    its function.
+    cooldown -> add to 'until_next_fire'(or 'gcd')?
+        *We use energy mechanism here, so cooldown could be None or 0,
+         this could add to 'global cooldown'(gcd).
+
+How to access:
+    Store them in a dict.
+        -> What about the params and resource they need?
+
+class SkillHandler():
+
+    def __init__(
+            self,
+            *,
+            sprite=None,
+            projectile_handler=None,
+            animation_handler=None,
+            clock=None
+        ):
+        self.sprite = sprite
+        self.projectile_handler = projectile_handler
+        self.clock = clock
+
+    def keyevent(self, keypress):
+        React to specific keypress.
+    or:
+    def __call__(self, keypress):
+        React ot specific keypress.
+
+
+Using of SkillHandler:
+    Skillhandler = SkillHandler(...)
+    character = Character(...)
+    player = PlayerInterface(
+        player=character,
+        skill=Skillhandler
+    )
+    player.keyevents(keypress)
+        # Calls the skill handler and move.
+
+
+class PlayerInterface():
+    
+    def __init__(
+            self,
+            *,
+            sprite=None,
+            hostile_camp=None,
+            skill=None
+        ):
+        self.sprite = sprite
+        self.skill = None
+        self.hostile_camp = hostile_camp
+
+    def keyevents(self, keypress):
+        self.sprite.move(keypress)
+        self.skill.keyevents(keypress)
+
+
+'''
