@@ -450,11 +450,14 @@ class Mob(
         self.move_x_rate = 6
         self.move_y_rate = 6
         # Spring move test.-------------------------------------------
-        self.float_vx, self.float_vy = 0, 0
-        self.float_sx, self.float_sy = self.rect.center
+        self.float_v = 0.0
+        self.float_s = 0.0
         self.dest_x, self.dest_y = self.rect.center
         self.is_at_dest = True
-        self.direction = pygame.math.Vector2(0, 0)
+        self.dist_to_dest = 0.0
+        self.direct_v = pygame.math.Vector2(0, 0)
+        self.float_center = pygame.math.Vector2(0, 0)
+        self.base_v = pygame.math.Vector2(0, 0)
         # Spring move test.-------------------------------------------
         now = pygame.time.get_ticks() # Get current time.
 
@@ -507,26 +510,39 @@ class Mob(
     def set_dest(self, x, y):
         if not self.is_at_dest:
             return
+        logging.debug(
+            f"<sprite({hex(id(self))}) has set its dest to ({x}, {y})>"
+            f"<Current: {self.rect.center}>"
+            )
+        self.base_v = pygame.math.Vector2(self.rect.center)
+        self.float_center = self.base_v
         self.dest_x, self.dest_y = int(x), int(y)
+        self.dest_s = pygame.math.Vector2(
+            self.dest_x, self.dest_y
+        )
+        self.dist_to_dest = math.hypot(
+            (x - self.rect.centerx),
+            (y - self.rect.centery)
+        )
         self.is_at_dest = False
-        self.direction = pygame.math.Vector2(self.rect.center) - \
-            pygame.math.Vector2((self.dest_x, self.dest_y))
+        self.direct_v = pygame.math.Vector2(self.dest_x, self.dest_y) - \
+            self.base_v
+        self.direct_v = self.direct_v.normalize() # Get the direction vector.
         return
 
     def spring_move(self):
         if self.is_at_dest:
             return
         # This is not a correct answer.
-        rd_move_interval = lambda: random.randint(3000, 8000)
         dest_x, dest_y = self.dest_x, self.dest_y
-        # Consts.-----------------------------------------------------
-        pd = 0.005
-        td = 0.05
-        freq = 0.2
+        # Consts.--------------------------------------------------- #
+        pd = 0.03
+        td = 0.5
+        freq = 0.7
         epsilon = 2
-        # Consts.-----------------------------------------------------
-        x, y = self.rect.center
-        t = clock.get_time()
+        # Consts.--------------------------------------------------- #
+        vector_now = pygame.math.Vector2(self.rect.center)
+        t = clock.get_time()/1000
         # Use 'Vector2'? How?
         def spring(
                 x, v, xt,
@@ -554,24 +570,40 @@ class Mob(
             k = math.log(pd) / (-o * td)
             return k
 
+        # New mechanism. ------------------------------------------- #
         z = zeta(pd, td, omega(freq))
-        self.float_sx, self.float_vx = spring(
-            x, self.float_vx, dest_x,
+        s_next, v_next = spring(
+            self.float_s, self.float_v, self.dist_to_dest,
             z, omega(freq), t
         )
-        self.float_sy, self.float_vy = spring(
-            y, self.float_vy, dest_y,
-            z, omega(freq), t
-        )
-        self.rect.center = int(self.float_sx), int(self.float_sy)
-        # Judge.------------------------------------------------------
-        at_dest_x_fuzzy = abs(self.rect.centerx) >= abs(self.dest_x - epsilon)
-        at_dest_y_fuzzy = abs(self.rect.centery) >= abs(self.dest_y - epsilon)
+        # Problem(OK)
+        print("Before", self.float_center, end='; ')
+        self.float_center = self.base_v + (s_next * self.direct_v)
+        print("After", self.float_center)
+        # Problem(OK)
+        self.rect.center = self.float_center
+        # NOTE!:
+        #   Calibrate 'float_s' and 'float_v' after it reaches destination!
+        #   Otherwise it causes sudden movement at the start of next move!
+        self.float_s = s_next
+        self.float_v = v_next
+
+        # New mechanism. ------------------------------------------- #
+
+        # Judge.---------------------------------------------------- #
+
+        at_dest_x_fuzzy = abs(self.rect.centerx - self.dest_x) <= epsilon
+        at_dest_y_fuzzy = abs(self.rect.centery - self.dest_y) <= epsilon
+
         if at_dest_x_fuzzy and at_dest_y_fuzzy:
-            logging.debug(f"<sprite({id(self)}) is at its destnation.>")
+            logging.debug(f"<sprite({hex(id(self))}) is at its destnation.>")
             self.is_at_dest = True
+            self.base_v = pygame.math.Vector2(self.rect.center)
+            # Calibration.
+            self.float_s = 0.0
+            self.float_v = 0.0
             self.direction = pygame.math.Vector2(0, 0)
-        # Judge.------------------------------------------------------
+        # Judge.---------------------------------------------------- #
         return None
 
     def update(self, current_time):
@@ -590,79 +622,6 @@ class Mob(
 
 # Skill handler.------------------------------------------------------
 
-# Indicator.----------------------------------------------------------
-# New HUD is planning.
-class Indicator(
-        pygame.sprite.Sprite,
-        animation.NewCore
-    ):
-    '''Skill charge instructor.'''
-    def __init__(
-            self,
-            *,
-            x_pos=0,
-            y_pos=0,
-            border_expand=25,
-            arc_color=(47, 89, 158, 190),
-            rim_color=(0, 255, 255, 215),
-            sprite=None,
-            ResID='', # Input ResIDs.
-            image=None
-        ):
-        if not sprite:
-            raise ValueError("No sprite being monitoring.")
-        master, frames = image
-        pygame.sprite.Sprite.__init__(self)
-        animation.NewCore.__init__(
-            self,
-            master=master,
-            frames=frames
-            )
-        self.resource = sprite.attrs[ResID]
-        self.sprite = sprite
-
-        self.rect.topleft = x_pos, y_pos
-        self.border_expand = border_expand
-        self.outer_rect = self.rect.inflate(
-            self.border_expand, self.border_expand
-            )
-        self.arc_color = arc_color
-        self.rim_color = rim_color
-
-    def update(self):
-        # Note: Redesign HUD for better performing.-------------------
-        sprite = self.sprite
-        res = self.resource
-        current_val = res.current_val
-        max_val = res.max_val
-        ratio = res.ratio
-        surf = pygame.Surface(self.outer_rect.size, pygame.SRCALPHA)
-        surf_rect = self.outer_rect.copy()
-        surf_rect.center = surf.get_rect().center
-        arc_rect = surf_rect.inflate(-10, -10)
-        arc_ratio = ratio * (2*math.pi)
-        # 'arc' takes 'radius' as param.
-        # Variable arc indicates resource percentage.
-        pygame.draw.arc(
-            surf,
-            self.arc_color,
-            arc_rect,
-            (math.pi/2),
-            (math.pi/2 + arc_ratio),
-            15
-            )
-        if ratio == 1:
-            # Outer rim indicates resource is full.
-            c_center = self.outer_rect.center
-            pygame.draw.circle(
-                surf,
-                self.rim_color,
-                surf_rect.center,
-                int(self.outer_rect.width/2),
-                3
-                )
-        screen.blit(surf, (self.outer_rect.topleft))
-
 # Instances.----------------------------------------------------------
 
 player = Character(
@@ -675,45 +634,6 @@ player = Character(
     )
 
 sprite_group.add(player)
-
-blank100 = animation.sequential_loader(w=100, h=100)
-
-ult = Indicator(
-    x_pos=screen_rect.w-180,
-    y_pos=screen_rect.h-170,
-    border_expand=80,
-    ResID=ResID.ULTIMATE,
-    sprite=player,
-    image=blank100
-    )
-
-blank75 = animation.sequential_loader(w=75, h=75)
-
-charge = Indicator(
-    x_pos=screen_rect.w-350,
-    y_pos=screen_rect.h-110,
-    border_expand=50,
-    ResID=ResID.CHARGE,
-    sprite=player,
-    image=blank75
-    )
-blank80 = animation.sequential_loader(w=80, h=80)
-
-HP_monitor = Indicator(
-    x_pos=60,
-    y_pos=515,
-    border_expand=50,
-    ResID=ResID.HP,
-    arc_color=(25, 221, 0, 240),
-    sprite=player,
-    image=blank80
-    )
-
-HUD_group.add(
-    HP_monitor,
-    charge,
-    ult
-    )
 
 # hitbox drawer.------------------------------------------------------
 
@@ -928,7 +848,7 @@ enemy_bullets = abilities.BulletHandle(
 MobHandler = MobHandle(
     group=sprite_group, # sprite_group
     animation_handler=AnimationHandler,
-    max_amount=15,
+    max_amount=1,
     camp=CampID.ENEMY
     )
 
@@ -1029,7 +949,7 @@ def dev_info(events):
         for enemy in enemies:
             x, y = enemy.rect.bottomright
             show_text(
-                enemy.attrs[ResID.HP],
+                enemy.float_center,
                 x,
                 y,
                 color=cfg.color.black
