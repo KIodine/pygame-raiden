@@ -24,7 +24,7 @@ import ui
     1. Seperate actions from player for further develope.
         Add a 'Interface' class could be a solution, but clarify its structure
         is more important.
-    2. Rename config module?
+    2. (Suspended)Rename config module?
     3. The way to share 'AnimationHandler', passing reference when initialize
         related module?
     4. 'Character', 'Mob', 'MobHandle' and someother are coupled with
@@ -454,6 +454,7 @@ class Mob(
         self.float_sx, self.float_sy = self.rect.center
         self.dest_x, self.dest_y = self.rect.center
         self.is_at_dest = True
+        self.direction = pygame.math.Vector2(0, 0)
         # Spring move test.-------------------------------------------
         now = pygame.time.get_ticks() # Get current time.
 
@@ -508,6 +509,8 @@ class Mob(
             return
         self.dest_x, self.dest_y = int(x), int(y)
         self.is_at_dest = False
+        self.direction = pygame.math.Vector2(self.rect.center) - \
+            pygame.math.Vector2((self.dest_x, self.dest_y))
         return
 
     def spring_move(self):
@@ -523,7 +526,8 @@ class Mob(
         epsilon = 2
         # Consts.-----------------------------------------------------
         x, y = self.rect.center
-        t = clock.get_rawtime()
+        t = clock.get_time()
+        # Use 'Vector2'? How?
         def spring(
                 x, v, xt,
                 zeta, omega, h
@@ -566,6 +570,7 @@ class Mob(
         if at_dest_x_fuzzy and at_dest_y_fuzzy:
             logging.debug(f"<sprite({id(self)}) is at its destnation.>")
             self.is_at_dest = True
+            self.direction = pygame.math.Vector2(0, 0)
         # Judge.------------------------------------------------------
         return None
 
@@ -865,7 +870,7 @@ class MobHandle():
 
     def attack_random(self):
         '''Attack with n percent of chance.'''
-        # Filter sprite by CIDfilter.
+        # Filter sprite by CIDfilter.------------------------------- #
         cid_group = characters.CIDfilter(self.group, self.camp)
         ready_group = [
             sprite for sprite in cid_group
@@ -875,12 +880,6 @@ class MobHandle():
         k = member_count if member_count < 5 else 5
         for hostile in random.choices(ready_group, k=k):
             hostile.attack(projectile_group)
-            # logging.debug(
-            #     (
-            #         f"Hostile({id(hostile)}) attacked, "
-            #         f"until next fire: {hostile.until_next_fire} ms."
-            #     )
-            # )
         return
 
     def move_sprite(self):
@@ -1105,24 +1104,42 @@ while RUN_FLAG:
     sprite_group.update(now)
     sprite_group.draw(screen)
     MobHandler.refresh()
+    
+    # Test Vector2. ------------------------------------------------ #
+    # Nothing, just testing the 'pygame.math.Vector2' module.
+    # Confirmed that 'Vector2' object can use as tuple(or iterable) as well.
+    mouse_posv = pygame.math.Vector2(
+        pygame.mouse.get_pos()
+    )
+    mouse_vector = pygame.math.Vector2(
+        pygame.mouse.get_rel()
+    )
+    pygame.draw.line(
+        screen, (200, 255, 0),
+        mouse_posv, (mouse_posv + mouse_vector),
+        1
+    )
+    # -------------------------------------------------------------- #
 
     # Testing New UI.----------------------------------------------- #
     # Note: The params and layout is not polished yet!
     # Debug, aligning.
     if DEV_MODE:
         pygame.draw.line(
-            screen, (255, 255, 0),
+            screen, (128, 255, 0),
             (player.rect.centerx - 250, player.rect.centery),
             (player.rect.centerx + 250, player.rect.centery),
             1
         )
         pygame.draw.arc(
-            screen, (255, 255, 0),
+            screen, (128, 255, 0),
             player.rect.inflate(400, 400),
             math.radians(180), math.radians(360),
             1
         )
+        # The arc seems not drawing the 'final step'.
     # Debug -------------------------------------------------------- #
+    # Use UIIntegrater to simplify drawing?
     ui.expand_arc(
         player,
         ResID.HP,

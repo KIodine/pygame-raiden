@@ -21,6 +21,7 @@ _DEFAULT_EXPAND = {
     'expand_angle': math.radians(60),
     'rim_width': 3,
     'ind_width': 2,
+    'c_index_color': (175, 175, 175),
     'gap': math.radians(5) # The diff of angle between arc and index.
 }
 
@@ -87,12 +88,12 @@ def expand_arc(
     frame = pygame.Rect(0, 0, L, L)
     frame.center = base_rect.center
     framex, framey = frame.center
-    ratio = sprite.attrs[res_id]
+    ratio = sprite.attrs[res_id].ratio
     if ratio == ResID.INVALID:
         ratio = 1
-    expand_angle = kw['expand_angle'] * sprite.attrs[res_id].ratio
+    expand_angle = kw['expand_angle'] * ratio
     clockwise_border = kw['base_angle'] - expand_angle
-    countercw_border = kw['base_angle'] + expand_angle + math.radians(5)
+    countercw_border = kw['base_angle'] + expand_angle + math.radians(5) * ratio
     # The pygame.draw.arc 
     pygame.draw.arc(
         surface,
@@ -102,29 +103,43 @@ def expand_arc(
         countercw_border,
         kw['rim_width']
     )
-    # The left poing and right point is not horizontal?
+    # The left poing and right point is not horizontal?------------- #
     if sprite.attrs[res_id].ratio == 1:
         pass
     else:
         kw['ind_color'] = (200, 0, 0)
     # -------------------------------------------------------------- #
+    cw_max_angle = kw['base_angle'] - kw['expand_angle']
+    ccw_max_angle = kw['base_angle'] + kw['expand_angle'] + math.radians(5)
+    # Add 5 degrees for correction.
     cw_st, cw_ed = centered_pol2rect(
         framex, framey,
         L/2 - kw['rim_width'],
         L/2 + kw['rim_width'],
-        clockwise_border - kw['gap']
+        cw_max_angle - kw['gap']
     )
     ccw_st, ccw_ed = centered_pol2rect(
         framex, framey,
         L/2 - kw['rim_width'],
         L/2 + kw['rim_width'],
-        countercw_border + kw['gap']
+        ccw_max_angle + kw['gap']
+    )
+    baseline_st, baseline_ed = centered_pol2rect(
+        framex, framey,
+        L/2 - 1.7*kw['rim_width'],
+        L/2 + 1.7*kw['rim_width'],
+        kw['base_angle']
+    )
+    # The center index line.
+    pygame.draw.line(
+        surface, kw['c_index_color'],
+        baseline_st, baseline_ed,
+        kw['ind_width']
     )
     for start, end in ((cw_st, cw_ed), (ccw_st, ccw_ed)):
         pygame.draw.line(
             surface, kw['ind_color'],
-            start,
-            end,
+            start, end,
             kw['ind_width']
         )
     # -------------------------------------------------------------- #
@@ -192,6 +207,21 @@ def expand_bar(
         bar,
         0 # fill.
     )
+    return
+
+def projection_index(
+        sprite,
+        group,
+        target_camp,
+        surface,
+        **kw
+    ):
+    '''Indicate the nearest enemy on the virtual ballistic.'''
+    '''
+        If there is enemy on the line, draw indication image on 
+        the bottom of the nearest enemy.
+        If not, no drawing is done.
+    '''
     return
 
 '''
