@@ -9,6 +9,9 @@ from resource import ResID
 #   (2) CHARGE
 #   (3) ULT
 
+# ------------------------------------------------------------------ #
+# NOTE: All angles in this module uses 'radians' as unit!----------- #
+# ------------------------------------------------------------------ #
 
 _DEFAULT_EXPAND = {
     'radius': 100,
@@ -18,7 +21,7 @@ _DEFAULT_EXPAND = {
     'expand_angle': math.radians(60),
     'rim_width': 3,
     'ind_width': 2,
-    'gap': math.radians(5)
+    'gap': math.radians(5) # The diff of angle between arc and index.
 }
 
 _DEFAULT_FULL = {
@@ -28,7 +31,14 @@ _DEFAULT_FULL = {
     'base_angle': math.radians(0),
     'rim_width': 5,
     'ind_width': 1,
-    'gap': 5
+    'gap': 5 # the radius diff between inner and outer rim.
+}
+
+_DEFAULT_BAR = {
+    'width': 100,
+    'height': 6,
+    'shift': 10,
+    'color': (0, 255, 0)
 }
 
 def pol2rect(r, phi):
@@ -42,6 +52,23 @@ def rect2pol(x, y):
     r = math.hypot(x, y)
     phi = math.atan2(y, x)
     return r, phi
+
+def centered_pol2rect(
+        cx,
+        cy,
+        init_r,
+        end_r,
+        phi
+    ):
+    st_x, st_y = pol2rect(init_r, phi)
+    st_x = cx + st_x
+    st_y = cy - st_y
+
+    ed_x, ed_y = pol2rect(end_r, phi)
+    ed_x = cx + ed_x
+    ed_y = cy - ed_y
+
+    return (st_x, st_y), (ed_x, ed_y)
 
 def expand_arc(
         sprite,
@@ -65,7 +92,8 @@ def expand_arc(
         ratio = 1
     expand_angle = kw['expand_angle'] * sprite.attrs[res_id].ratio
     clockwise_border = kw['base_angle'] - expand_angle
-    countercw_border = kw['base_angle'] + expand_angle
+    countercw_border = kw['base_angle'] + expand_angle + math.radians(5)
+    # The pygame.draw.arc 
     pygame.draw.arc(
         surface,
         kw['rim_color'],
@@ -76,27 +104,30 @@ def expand_arc(
     )
     # The left poing and right point is not horizontal?
     if sprite.attrs[res_id].ratio == 1:
-        sposx, sposy = pol2rect(
-            L/2 - kw['rim_width'],
-            clockwise_border - kw['gap']
-        )
-        eposx, eposy = pol2rect(
-            L/2 + kw['rim_width'],
-            clockwise_border - kw['gap']
-        )
+        pass
+    else:
+        kw['ind_color'] = (200, 0, 0)
+    # -------------------------------------------------------------- #
+    cw_st, cw_ed = centered_pol2rect(
+        framex, framey,
+        L/2 - kw['rim_width'],
+        L/2 + kw['rim_width'],
+        clockwise_border - kw['gap']
+    )
+    ccw_st, ccw_ed = centered_pol2rect(
+        framex, framey,
+        L/2 - kw['rim_width'],
+        L/2 + kw['rim_width'],
+        countercw_border + kw['gap']
+    )
+    for start, end in ((cw_st, cw_ed), (ccw_st, ccw_ed)):
         pygame.draw.line(
-            surface,
-            kw['ind_color'],
-            (framex + int(sposx), framey - int(sposy)),
-            (framex + int(eposx), framey - int(eposy)),
+            surface, kw['ind_color'],
+            start,
+            end,
             kw['ind_width']
         )
-        pygame.draw.line(
-            surface,
-            kw['ind_color'],
-            (framex - int(sposx), framey - int(sposy)),
-            (framex - int(eposx), framey - int(eposy))
-        )
+    # -------------------------------------------------------------- #
     return None
 
 def full_rim(
@@ -139,9 +170,29 @@ def full_rim(
             )
     return None
 
-def expand_bar():
+def expand_bar(
+        sprite,
+        res_id,
+        surface,
+        **kw
+    ):
     '''Draw expanding bar that hovers on the top of sprite.'''
-    raise NotImplementedError
+    for k, v in _DEFAULT_BAR.items():
+        if k not in kw:
+            kw[k] = v
+    ratio = int(sprite.attrs[res_id].ratio * 100)
+    bar_x, bar_y = sprite.rect.center
+    bar = pygame.rect.Rect(
+        0, 0, ratio, kw['width']
+    )
+    bar.center = bar_x, (bar_y - kw['shift'])
+    pygame.draw.rect(
+        surface,
+        kw['color'],
+        bar,
+        0 # fill.
+    )
+    return
 
 '''
     Note:
@@ -153,7 +204,7 @@ class Holder():
     def __init__(
             self,
             *,
-            sprite,
+            sprite, # or group, CID
             surface
         ):
         self.sprite = sprite

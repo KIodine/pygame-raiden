@@ -818,13 +818,6 @@ class MobHandle():
             attrs=copy.deepcopy(ENEMY_ATTRS),
             camp=self.camp
             )
-        # Tracking object lifespan.-----------------------------------
-        weakref.finalize(
-            enemy,
-            print,
-            f"<Enemy({id(enemy)}) spawn by handler has been collected.>"
-            )
-        # ------------------------------------------------------------
         while True:
             # Try until the new sprite's rect does not overlap the existings.
             if not pygame.sprite.spritecollide(
@@ -1113,31 +1106,61 @@ while RUN_FLAG:
     sprite_group.draw(screen)
     MobHandler.refresh()
 
-    # Testing New UI.-------------------------------------------------
+    # Testing New UI.----------------------------------------------- #
     # Note: The params and layout is not polished yet!
+    # Debug, aligning.
+    if DEV_MODE:
+        pygame.draw.line(
+            screen, (255, 255, 0),
+            (player.rect.centerx - 250, player.rect.centery),
+            (player.rect.centerx + 250, player.rect.centery),
+            1
+        )
+        pygame.draw.arc(
+            screen, (255, 255, 0),
+            player.rect.inflate(400, 400),
+            math.radians(180), math.radians(360),
+            1
+        )
+    # Debug -------------------------------------------------------- #
     ui.expand_arc(
         player,
         ResID.HP,
         screen,
         radius=150,
-        ind_color=(0, 255, 255)
+        ind_color=(0, 255, 255),
+        rim_width=4
     )
 
-    ui.full_rim(
+    ui.expand_arc(
+        player,
+        ResID.CHARGE,
+        screen,
+        radius=175,
+        base_angle=math.radians(210),
+        expand_angle=math.radians(25),
+        rim_color=(47, 89, 158),
+        ind_color=(0, 255, 255),
+        gap=math.radians(2.5)
+    )
+
+    ui.expand_arc(
         player,
         ResID.ULTIMATE,
         screen,
-        radius=125,
-        base_angle=math.radians(90),
-        rim_color=(255, 235, 25),
-        ind_color=(0, 255, 255)
+        radius=175,
+        base_angle=math.radians(300),
+        expand_angle=math.radians(50),
+        rim_color=(255, 175, 63),
+        ind_color=(0, 255, 255),
+        gap=math.radians(2.5)
     )
     # ----------------------------------------------------------------
 
     AnimationHandler.refresh()
 
-    HUD_group.draw(screen)
-    HUD_group.update()
+    # HUD_group.draw(screen)
+    # HUD_group.update()
 
     if DEV_MODE:
         color = cfg.color.black
