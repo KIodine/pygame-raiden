@@ -1,8 +1,10 @@
 import math
+from functools import wraps
 
 import pygame
 
 from resource import ResID
+from characters import CIDfilter
 
 # Resource indicators, including:
 #   (1) HP
@@ -11,7 +13,13 @@ from resource import ResID
 
 # ------------------------------------------------------------------ #
 # NOTE: All angles in this module uses 'radians' as unit!----------- #
+# EXCEPT: 'arrow_to'(Due to some coordinate issue)------------------ #
 # ------------------------------------------------------------------ #
+
+# TODO:
+#   (1) Apply 'default_keyword' decorator to functions had **kw.
+
+Vector2 = pygame.math.Vector2
 
 _DEFAULT_EXPAND = {
     'radius': 100,
@@ -42,6 +50,31 @@ _DEFAULT_BAR = {
     'color': (0, 255, 0)
 }
 
+_DEFAULT_ARROW = {
+    'color': (255, 255, 0),
+    'expand': 10, # Degree.
+    'length': 20,
+    'pass': None,
+}
+
+_DEFAULT_SIGHT = {
+    'pass': None
+}
+
+def default_keyword(default_kw):
+    '''Set the default keyword dict to the decorated function.'''
+    def func_catcher(func):
+        @wraps(func)
+        def wrapper(*args, **kw):
+            '''Modify kwargs then put back.'''
+            for k, v in default_kw.items():
+                # Add check a key is available in default keyword or not.
+                if k not in kw:
+                    kw[k] = v
+            return func(*args, **kw)
+        return wrapper
+    return func_catcher
+
 def pol2rect(r, phi):
     '''Convert polar to rectangle.'''
     x = r * math.cos(phi)
@@ -71,6 +104,43 @@ def centered_pol2rect(
 
     return (st_x, st_y), (ed_x, ed_y)
 
+def arrow_to(
+        surface,
+        point,
+        angle: 'degree',
+        distance,
+        **kw
+    ):
+    '''Draw an isosceles triangle by determine its point, top, angle, and side.'''
+    for k, v in _DEFAULT_ARROW.items():
+        if k not in kw:
+            kw[k] = v
+    angle = 360 - angle
+    vertices = list()
+    point = Vector2(point)
+    top = Vector2()
+    top.from_polar((distance, angle))
+    # The pygame surface coord is upside down.
+    pin_point = point + top
+    vertices.append(pin_point)
+    vertex_cw = Vector2()
+    vertex_cw.from_polar(
+        (kw['length'], angle-kw['expand'])
+        )
+    vertices.append(pin_point+vertex_cw)
+    vertex_ccw = Vector2()
+    vertex_ccw.from_polar(
+        (kw['length'], angle+kw['expand'])
+    )
+    vertices.append(pin_point+vertex_ccw)
+    pygame.draw.polygon(
+        surface,
+        kw['color'],
+        vertices,
+        0 # Fill.
+    )
+    return
+
 def expand_arc(
         sprite,
         res_id,
@@ -94,7 +164,7 @@ def expand_arc(
     expand_angle = kw['expand_angle'] * ratio
     clockwise_border = kw['base_angle'] - expand_angle
     countercw_border = kw['base_angle'] + expand_angle + math.radians(5) * ratio
-    # The pygame.draw.arc 
+    # Add 5 degrees for correction.
     pygame.draw.arc(
         surface,
         kw['rim_color'],
@@ -209,7 +279,7 @@ def expand_bar(
     )
     return
 
-def projection_index(
+def sight_index(
         sprite,
         group,
         target_camp,
@@ -218,10 +288,43 @@ def projection_index(
     ):
     '''Indicate the nearest enemy on the virtual ballistic.'''
     '''
-        If there is enemy on the line, draw indication image on 
+        If there is enemy on the line, draw indication image on
         the bottom of the nearest enemy.
-        If not, no drawing is done.
+        If not, no drawing is applied.
     '''
+    # Let this function takes the pattern, decides the pattern by 'partial'?
+    selected = [sprite for sprite in CIDfilter(group, target_camp)]
+    if not selected:
+        return
+    f = lambda other: abs(other.rect.bottom - sprite.rect.top)
+    hitbox = pygame.Rect(
+        (0, 0), 
+        (3, sprite.rect.top)
+    )
+    hitbox.midbottom = sprite.rect.midtop
+    collided = list()
+    for select in selected:
+        if hitbox.colliderect(select.rect.inflate(30, 30)):
+            # Use 'inflate' method to make it more sensitive.
+            collided.append(select)
+    if not collided:
+        x, y = sprite.rect.midtop
+        y -= 30
+        color = (0, 200, 0)
+    else:
+        collided.sort(key=f)
+        x, y = sprite.rect.centerx, collided[0].rect.bottom
+        color = (255, 15, 0)
+    # Draw pattern ------------------------------------------------- #
+    # This is replacable.
+    arrow_to(
+        surface,
+        (x, y),
+        270,
+        5,
+        color=color
+    )
+    # -------------------------------------------------------------- #
     return
 
 '''

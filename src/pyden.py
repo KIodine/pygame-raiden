@@ -458,6 +458,9 @@ class Mob(
         self.direct_v = pygame.math.Vector2(0, 0)
         self.float_center = pygame.math.Vector2(0, 0)
         self.base_v = pygame.math.Vector2(0, 0)
+        # Lock mechanism.
+        self.until_next_move = 0.0
+        self.ready_to_move = True
         # Spring move test.-------------------------------------------
         now = pygame.time.get_ticks() # Get current time.
 
@@ -508,7 +511,7 @@ class Mob(
         return
 
     def set_dest(self, x, y):
-        if not self.is_at_dest:
+        if not self.is_at_dest or not self.ready_to_move:
             return
         logging.debug(
             f"<sprite({hex(id(self))}) has set its dest to ({x}, {y})>"
@@ -525,6 +528,7 @@ class Mob(
             (y - self.rect.centery)
         )
         self.is_at_dest = False
+        self.ready_to_move = False
         self.direct_v = pygame.math.Vector2(self.dest_x, self.dest_y) - \
             self.base_v
         self.direct_v = self.direct_v.normalize() # Get the direction vector.
@@ -577,9 +581,9 @@ class Mob(
             z, omega(freq), t
         )
         # Problem(OK)
-        print("Before", self.float_center, end='; ')
+        # print("Before", self.float_center, end='; ')
         self.float_center = self.base_v + (s_next * self.direct_v)
-        print("After", self.float_center)
+        # print("After", self.float_center)
         # Problem(OK)
         self.rect.center = self.float_center
         # NOTE!:
@@ -591,7 +595,6 @@ class Mob(
         # New mechanism. ------------------------------------------- #
 
         # Judge.---------------------------------------------------- #
-
         at_dest_x_fuzzy = abs(self.rect.centerx - self.dest_x) <= epsilon
         at_dest_y_fuzzy = abs(self.rect.centery - self.dest_y) <= epsilon
 
@@ -599,25 +602,36 @@ class Mob(
             logging.debug(f"<sprite({hex(id(self))}) is at its destnation.>")
             self.is_at_dest = True
             self.base_v = pygame.math.Vector2(self.rect.center)
-            # Calibration.
+            # Reset params.
             self.float_s = 0.0
             self.float_v = 0.0
             self.direction = pygame.math.Vector2(0, 0)
+            # Set until next move.
+            self.until_next_move = random.randint(4000, 6000)
+            print(f"Until next move: {self.until_next_move/1000}")
         # Judge.---------------------------------------------------- #
         return None
 
     def update(self, current_time):
         self.to_next_frame(current_time)
         self.spring_move()
-        dt = clock.get_rawtime()
+        dt = clock.get_time()
         for res in self.attrs.values():
             res.recover(current_time)
+
         if not self.ready_to_fire:
             # Relative mode.
             self.until_next_fire -= dt
             if self.until_next_fire <= 0:
                 self.until_next_fire = 0
                 self.ready_to_fire = True
+
+        if not self.ready_to_move and self.is_at_dest:
+            self.until_next_move -= dt
+            if self.until_next_move <= 0:
+                self.until_next_move = 0
+                self.ready_to_move = True
+
         self.draw_hpbar()
 
 # Skill handler.------------------------------------------------------
@@ -848,11 +862,11 @@ enemy_bullets = abilities.BulletHandle(
 MobHandler = MobHandle(
     group=sprite_group, # sprite_group
     animation_handler=AnimationHandler,
-    max_amount=1,
+    max_amount=17,
     camp=CampID.ENEMY
     )
 
-# Elapsed time.
+# Elapsed time during initialization.
 _elapsed_time = time.perf_counter() - _zero
 print(
     "Time spent during initiate: {:.3f} ms".format(
@@ -1092,12 +1106,28 @@ while RUN_FLAG:
         ind_color=(0, 255, 255),
         gap=math.radians(2.5)
     )
-    # ----------------------------------------------------------------
+
+    if player.attrs[ResID.ULTIMATE].ratio == 1:
+        arrow_color = (0, 255, 255)
+    else:
+        arrow_color = (255, 255, 0)
+    ui.arrow_to(
+        screen,
+        player.rect.center,
+        270,
+        30,
+        color=arrow_color
+    )
+    # Not useful, just for experiment.
+    ui.sight_index(
+        player,
+        sprite_group,
+        CampID.ENEMY,
+        screen
+    )
+    # Testing new ui------------------------------------------------ #
 
     AnimationHandler.refresh()
-
-    # HUD_group.draw(screen)
-    # HUD_group.update()
 
     if DEV_MODE:
         color = cfg.color.black
