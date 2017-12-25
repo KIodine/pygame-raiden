@@ -18,6 +18,7 @@ import abilities
 import resource
 import characters
 import ui
+import particle
 
 # Pyden 0.42.5
 '''Notes:
@@ -34,7 +35,7 @@ import ui
 
 _zero = time.perf_counter() # Reference point.
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 # Set constants.------------------------------------------------------
 
@@ -250,6 +251,15 @@ class Character(
 
         if keypress[pygame.K_j] and not self.ult_active:
             # Cast normal attack.
+            # particle --------------------------------------------- #
+            # particle.spawn_normalvar(
+            #     self.rect.midtop,
+            #     (0, 0),
+            #     5,
+            #     1.1,
+            #     0
+            # )
+            # particle --------------------------------------------- #
             self.create_bullet(projectile_group)
             return
 
@@ -326,6 +336,15 @@ class Character(
         return
 
     def laser(self):
+        # Test.
+        particle.spawn_normalvar(
+                self.rect.midtop,
+                (0, 0),
+                5,
+                0.3,
+                0
+            )
+        # Test.
         bottom = self.rect.top - 8
         top = 0
         w = 14
@@ -353,6 +372,15 @@ class Character(
         for enemy in enemies:
             if rect.colliderect(enemy.rect):
                 enemy.attrs[ResID.HP] -= 10
+                # Test.
+                particle.spawn_normalvar(
+                    enemy.rect.midbottom,
+                    (0, 0),
+                    9,
+                    1.1,
+                    0
+                )
+                # Test.
         for host_proj in host_ps:
             if rect.colliderect(host_proj):
                 projectile_group.remove(host_proj)
@@ -798,6 +826,13 @@ class MobHandle():
                     y=y,
                     image=new_explode
                     )
+                particle.spawn_uniform(
+                    hostile.rect.center,
+                    (0, 0),
+                    15,
+                    1.1,
+                    0
+                )
                 pass
             pass
         return
@@ -1126,6 +1161,18 @@ while RUN_FLAG:
         screen
     )
     # Testing new ui------------------------------------------------ #
+
+    # Test particle effects ---------------------------------------- #
+    for part in particle.mess:
+        if not (0 < part.rect.centerx < screen_rect.w)\
+        or part.rect.centery > screen_rect.h:
+            particle.mess.remove(part)
+        if part.dead:
+            particle.mess.remove(part)
+
+    particle.mess.update(clock.get_time())
+    particle.mess.draw(screen)
+    # Test particle effects ---------------------------------------- #
 
     AnimationHandler.refresh()
 
