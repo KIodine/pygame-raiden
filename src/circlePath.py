@@ -118,9 +118,9 @@ def main():
                 done = True
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP and player.speed > MINSPEED:
-                    player.speed += 3
+                    player.speed = 3
                 if event.key == pygame.K_DOWN and player.speed < MAXSPEED:
-                    player.speed -= 3
+                    player.speed = -3
                 if event.key == pygame.K_LEFT:
                     player.angle_speed = -3
                 if event.key == pygame.K_RIGHT:
