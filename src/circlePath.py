@@ -21,18 +21,18 @@ class CirclePath():
         self.finalVector = self.final - self.centre
         self.direction = Vector2(0, -1)
         self.speed = 2
-        self.sprite123 = sprite123
+        self.sp123 = sprite123
         
 
     def NextCoor( self,nowpos ):
         #if ( )
-        self.sprite123.direction.rotate_ip(self.sprite123.angle_speed)
-        self.sprite123.angle += self.sprite123.angle_speed
-        self.sprite123.image = pygame.transform.rotate(self.sprite123.original_image, -self.sprite123.angle)
-        self.sprite123.rect = self.sprite123.image.get_rect(midtop=self.sprite123.rect.midtop)
+        self.sp123.direction.rotate_ip(self.sp123.angle_speed)
+        self.sp123.angle += self.sp123.angle_speed
+        self.sp123.image = pygame.transform.rotate(self.sp123.original_image, -self.sp123.angle)
+        self.sp123.rect = self.sp123.image.get_rect(midtop=self.sp123.rect.midtop)
         # Update the position vector and the rect.
-        self.sprite123.position += self.sprite123.direction * self.sprite123.speed
-        self.sprite123.rect.center = self.sprite123.position
+        self.sp123.position += self.sp123.direction * self.sp123.speed
+        self.sp123.rect.center = self.sp123.position
 
 
 
