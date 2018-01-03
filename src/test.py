@@ -1,14 +1,12 @@
 from pygame.math import Vector2
 
-a = Vector2( 1,6 )
-b = Vector2( 4,3 )
+A = Vector2(1, 6)
+B = Vector2(4, 3)
 
-center = Vector2(1,3)
+center = Vector2(1, 3)
 
-a = a-center
-b = b-center
+A = A-center
+B = B-center
 
-print(a,a.as_polar())
-print(b,b.as_polar())
-
-
+print(A, A.as_polar()[1])
+print(B, B.as_polar())
