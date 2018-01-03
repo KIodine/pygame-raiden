@@ -10,7 +10,7 @@ class path():
             final=None, #目標座標
             centre=None, #圓心 
             #以上三項參數均為 ( x,y )
-            omega=None, #角速度
+            omega=None, #角速度為正是順時鐘，負為逆時鐘
             sprite123=None
         ):
         self.enabled = False
@@ -26,14 +26,15 @@ class path():
 
     def NextCoor( self ):
         #if ( )
-        self.nowVec[:] = [int(x) for x in self.nowVec]
-        if self.nowVec == self.finalVec:
+        tempVec = [int(x) for x in self.nowVec]
+        if self.nowAngle >= self.finalAngle:
             self.enabled = False
             self.sp123.is_at_dest = True
             print("hi")
             return False
-        print(self.nowVec, self.finalVec)
+        print(tempVec, self.finalVec)
         self.nowVec.rotate_ip(self.omega)
+        self.nowAngle += abs(self.omega)
         # Update the position vector and the rect.
         self.sp123.rect.center = self.centre+self.nowVec
         return True
@@ -45,5 +46,7 @@ class path():
         self.omega = omega
         self.sp123 = sp123
         self.enabled = True
+        self.finalAngle = abs(self.finalVec.as_polar()[1] - self.nowVec.as_polar()[1])
+        self.nowAngle = 0
 
         return

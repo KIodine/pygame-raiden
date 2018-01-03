@@ -19,6 +19,7 @@ import resource
 import characters
 import ui
 import path
+from pygame.math import Vector2
 
 # Pyden 0.42.5
 '''Notes:
@@ -530,7 +531,9 @@ class Mob(
         self.direct_v = pygame.math.Vector2(self.dest_x, self.dest_y) - \
             self.base_v
         self.direct_v = self.direct_v.normalize() # Get the direction vector.
-        self.path.ReDirect( self.base_v, self.dest_s, (200,200), 1, self )
+        safe_x_pos = random.randint(100, screen_rect.w-100)
+        safe_y_pos = random.randint(100, screen_rect.h/2)
+        self.path.ReDirect( self.base_v, self.dest_s, Vector2(safe_x_pos, safe_y_pos), random.randint(-10, 10), self )
         return
 
     def spring_move(self):
@@ -822,11 +825,13 @@ class MobHandle():
         ]
         member_count = len(ready_group)
         k = member_count if member_count < 5 else 5
-        for sprite in random.choices(ready_group, k=k):
+        for sprite in ready_group:
+            sprite.set_dest(safe_x_pos(), safe_y_pos())
+        '''for sprite in random.choices(ready_group, k=k):
             sprite.set_dest(safe_x_pos(), safe_y_pos())
             # Seems not suit?
             # Splitting x and y is not right, treat as 'distance',
-            # then split into x and y vector.
+            # then split into x and y vector.'''
         return
 
 # Init handlers.------------------------------------------------------
