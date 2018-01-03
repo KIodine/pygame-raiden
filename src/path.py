@@ -1,6 +1,7 @@
 import math
 import pygame
 from pygame.math import Vector2
+import logging
 
 class path():
     
@@ -8,7 +9,7 @@ class path():
             now=None, #目前座標
             final=None, #目標座標
             centre=None, #圓心 
-            #以上三項參數均為Points ( x,y )
+            #以上三項參數均為 ( x,y )
             omega=None, #角速度
             sprite123=None
         ):
@@ -25,9 +26,13 @@ class path():
 
     def NextCoor( self ):
         #if ( )
+        self.nowVec[:] = [int(x) for x in self.nowVec]
         if self.nowVec == self.finalVec:
             self.enabled = False
+            self.sp123.is_at_dest = True
+            print("hi")
             return False
+        print(self.nowVec, self.finalVec)
         self.nowVec.rotate_ip(self.omega)
         # Update the position vector and the rect.
         self.sp123.rect.center = self.centre+self.nowVec
