@@ -18,6 +18,7 @@ import abilities
 import resource
 import characters
 import ui
+import path
 
 # Pyden 0.42.5
 '''Notes:
@@ -470,6 +471,7 @@ class Mob(
         # Overwriting params from 'NewCore'.--------------------------
         self.fps = 24
         self.last_draw = now
+        self.path = path.path()
 
     def draw_hpbar(self):
         hp_ratio = int(self.attrs[ResID.HP].ratio * 100)
@@ -528,6 +530,7 @@ class Mob(
         self.direct_v = pygame.math.Vector2(self.dest_x, self.dest_y) - \
             self.base_v
         self.direct_v = self.direct_v.normalize() # Get the direction vector.
+        self.path.ReDirect( self.base_v, self.dest_s, (200,200), 1, self )
         return
 
     def spring_move(self):
@@ -606,9 +609,16 @@ class Mob(
         # Judge.---------------------------------------------------- #
         return None
 
+    def Test_Move(self):
+        self.path.NextCoor()
+
+        return
+
     def update(self, current_time):
         self.to_next_frame(current_time)
-        self.spring_move()
+        #self.spring_move()
+        if self.path.enabled == True:
+            self.Test_Move()
         dt = clock.get_rawtime()
         for res in self.attrs.values():
             res.recover(current_time)
