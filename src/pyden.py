@@ -533,6 +533,10 @@ class Mob(
         self.direct_v = self.direct_v.normalize() # Get the direction vector.
         safe_x_pos = random.randint(100, screen_rect.w-100)
         safe_y_pos = random.randint(100, screen_rect.h/2)
+
+        temp_Omega = random.randint(-10, 10)
+        while temp_Omega == 0:
+            temp_Omega = random.randint(-10, 10)
         self.path.ReDirect( self.base_v, self.dest_s, Vector2(safe_x_pos, safe_y_pos), random.randint(-10, 10), self )
         return
 
