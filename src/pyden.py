@@ -20,7 +20,7 @@ import characters
 import ui
 import particle
 
-# Pyden 0.42.5
+# Pyden 0.43.0
 '''Notes:
     1. Seperate actions from player for further develope.
         Add a 'Interface' class could be a solution, but clarify its structure
@@ -80,15 +80,13 @@ sprite_group = pygame.sprite.Group() # Universal.
 projectile_group = pygame.sprite.Group() # Universal.
 
 animated_object_group = pygame.sprite.Group()
-HUD_group = pygame.sprite.Group()
 
 ALL_GROUPS = list()
 ALL_GROUPS.extend(
     [
         sprite_group,
         projectile_group,
-        animated_object_group,
-        HUD_group
+        animated_object_group
     ]
 )
 # Identifier for camp.
@@ -105,20 +103,35 @@ if not os.path.exists('images'):
     except FileNotFoundError:
         raise
 
-test_grid_dir = 'images/Checkered.png' # The 'transparent' grid.
-test_grid = pygame.image.load(test_grid_dir).convert_alpha()
+IMAGE_DIR = {
+    'explode': 'images/stone.png',
+    'ufo': 'images/ufo.gif',
+    'flash': 'images/explosion1.png',
+    'test_grid': 'images/Checkered.png' # The 'transparent' grid.
+}
+
+test_grid = pygame.image.load(IMAGE_DIR['test_grid']).convert_alpha()
 test_grid_partial = test_grid.subsurface(screen_rect)
+
+FONT_DIR = {
+    'msjh': 'fonts/msjh.ttf'
+}
+
+FONT_SIZE = {
+    16, 24, 32, 40
+}
+
+MSJH = {
+    i: pygame.font.Font(FONT_DIR['msjh'], i)
+    for i in FONT_SIZE
+}
 
 msjh_dir = 'fonts/msjh.ttf'
 msjh_24 = pygame.font.Font(msjh_dir, 24)
 msjh_16 = pygame.font.Font(msjh_dir, 16)
 
-explode_dir = 'images/stone.png'
-ufo_dir = 'images/ufo.gif'
-flash_dir = 'images/explosion1.png'
-
 new_explode = animation.sequential_loader(
-    image=explode_dir,
+    image=IMAGE_DIR['explode'],
     w=50,
     h=50,
     col=1,
@@ -126,7 +139,7 @@ new_explode = animation.sequential_loader(
 )
 
 new_ufo = animation.sequential_loader(
-    image=ufo_dir,
+    image=IMAGE_DIR['ufo'],
     w=58,
     h=34,
     col=12
@@ -134,13 +147,13 @@ new_ufo = animation.sequential_loader(
 
 # The old-style loader, still using.
 flash = animation.loader(
-    image=flash_dir,
+    image=IMAGE_DIR['flash'],
     w=15,
     h=15
     )
 
 new_flash = animation.sequential_loader(
-    image=flash_dir,
+    image=IMAGE_DIR['flash'],
     w=15,
     h=15
 )
@@ -157,17 +170,28 @@ def show_text(
         text: str,
         x=0,
         y=0,
-        font=msjh_16,
-        color=cfg.color.white
+        font=MSJH[16],
+        color=cfg.color.white,
+        center=False
     ):
-    '''Display text on x, y.'''
+    """Show text on the screen."""
     if not isinstance(text, str):
         try:
             text = str(text)
         except:
             raise
-    rendered_text = font.render(text, True, color)
-    screen.blit(rendered_text, (x, y))
+    rendered_text = font.render(
+        text, True, color
+    )
+    if center is True:
+        dx, dy = font.size(text)
+        dx //= 2
+        dy //= 2
+    else:
+        dx = dy = 0
+    screen.blit(
+        rendered_text, (x-dx, y-dy)
+    )
     return None
 
 # Classes.------------------------------------------------------------
@@ -246,20 +270,10 @@ class Character(
         # Normal attack: 'j'
         # Charged attack: 'k'
         # Ult: 'l'(L)
-
         self.move(keypress)
 
         if keypress[pygame.K_j] and not self.ult_active:
             # Cast normal attack.
-            # particle --------------------------------------------- #
-            # particle.spawn_normalvar(
-            #     self.rect.midtop,
-            #     (0, 0),
-            #     5,
-            #     1.1,
-            #     0
-            # )
-            # particle --------------------------------------------- #
             self.create_bullet(projectile_group)
             return
 
@@ -272,12 +286,6 @@ class Character(
             if self.attrs[ResID.ULTIMATE].ratio == 1:
                 print("<Ultimate activated>")
                 self.ult_active = True
-            else:
-                print(
-                    "<Insufficient energy: {}>".format(
-                        self.attrs[ResID.ULTIMATE].ratio
-                    )
-                )
 
         if keypress[pygame.K_u] \
            and self.ult_active \
@@ -338,11 +346,10 @@ class Character(
     def laser(self):
         # Test.
         particle.spawn_normalvar(
-                self.rect.midtop,
-                (0, 0),
-                5,
-                0.3,
-                0
+            self.rect.midtop,
+            (0, -350),
+            n=5,
+            drag=0.3
             )
         # Test.
         bottom = self.rect.top - 8
@@ -372,13 +379,11 @@ class Character(
         for enemy in enemies:
             if rect.colliderect(enemy.rect):
                 enemy.attrs[ResID.HP] -= 10
-                # Test.
+                # Particle effect.
                 particle.spawn_normalvar(
                     enemy.rect.midbottom,
-                    (0, 0),
-                    9,
-                    1.1,
-                    0
+                    (0, -300),
+                    n=11
                 )
                 # Test.
         for host_proj in host_ps:
@@ -636,7 +641,7 @@ class Mob(
             self.direction = pygame.math.Vector2(0, 0)
             # Set until next move.
             self.until_next_move = random.randint(4000, 6000)
-            print(f"Until next move: {self.until_next_move/1000}")
+            # print(f"Until next move: {self.until_next_move/1000}")
         # Judge.---------------------------------------------------- #
         return None
 
@@ -710,14 +715,6 @@ def draw_boxes():
             eff.rect,
             1
             )
-    for ui in HUD_group:
-        frame = pygame.draw.rect(
-            screen,
-            (0, 255, 0),
-            ui.outer_rect,
-            2
-            )
-        pass
     return
 
 # MobHandle.----------------------------------------------------------
@@ -802,8 +799,8 @@ class MobHandle():
                 )
                 break
             else:
-                if DEV_MODE:
-                    print("<Collide detected, rearrange position.>")
+                # if DEV_MODE:
+                #     print("<Collide detected, rearrange position.>")
                 enemy.rect.center = safe_x_pos(), safe_y_pos()
         self.group.add(enemy)
         return
@@ -826,12 +823,12 @@ class MobHandle():
                     y=y,
                     image=new_explode
                     )
+                # Particle effect.
                 particle.spawn_uniform(
                     hostile.rect.center,
                     (0, 0),
-                    15,
-                    1.1,
-                    0
+                    n=23,
+                    drag=1.1,
                 )
                 pass
             pass

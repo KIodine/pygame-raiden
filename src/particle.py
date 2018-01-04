@@ -2,6 +2,7 @@ import random
 import math
 import sys
 from collections import deque
+from functools import wraps
 from operator import iadd, isub
 
 import pygame
@@ -20,6 +21,54 @@ mess = pygame.sprite.Group()
 pygame.init()
 CLOCK = pygame.time.Clock()
 
+'''NOTE:
+    (1) Improve customability.
+'''
+# Kwargs checking.
+def set_default_kw(default_kw):
+    '''Decorator.'''
+    def f_catcher(func):
+        @wraps(func)
+        def wrapper(*args, **kw):
+            if any(k not in default_kw for k in kw.keys()):
+                diff = set(kw.keys()) - set(default_kw.keys())
+                raise KeyError(
+                    "The following key(s) is not exist: "
+                    "{k}".format(k=', '.join(diff))
+                    )
+            default_kw.update(kw)
+            kw = default_kw
+            return func(*args, **kw)
+        return wrapper
+    return f_catcher
+
+# The default keyword parameter.
+_UNIFORM = {
+    'n': 15,
+    'drag': 1.1,
+    'g': 0,
+    'group': mess,
+    'color': (240, 200, 0),
+    'r_mu': 0.25,
+    'r_sigma': 0.09,
+    'r_rate': 150,
+    'r_base': 200
+}
+
+_NORMALVAR = {
+    'n': 5,
+    'drag': 0.3,
+    'g': 0,
+    'group': mess,
+    'color': (240, 200, 0),
+    'r_mu': 0.25,
+    'r_sigma': 0.09,
+    'r_rate': 150,
+    'r_base': 200,
+    'phi_mu': -90,
+    'phi_sigma': 15
+}
+
 if __name__ == '__main__':
     pygame.init()
     pygame.display.init()
@@ -29,6 +78,8 @@ if __name__ == '__main__':
         )
     screen_rect = screen.get_rect()
 
+# Add a 'color' option?
+# Or add alpha channel.
 class Particle(pygame.sprite.Sprite):
     # If an attr is defined outside (the raw space), any modification
     # in any instance will change the 'template' one.
@@ -40,15 +91,20 @@ class Particle(pygame.sprite.Sprite):
             init_v=None,
             init_a=None,
             drag=0,
-            g=0
+            g=0,
+            color=(195, 195, 0),
+            base_life=0.9,
         ):
         pygame.sprite.Sprite.__init__(self)
 
-        self.image = pygame.surface.Surface((2, 2))
+        self.image = pygame.surface.Surface(
+            (2, 2), pygame.SRCALPHA, 32
+            )
         self.image.fill((255, 255, 0))
         self.rect = self.image.get_rect()
         # Adjusting.
-        self.lifespan = (random.random()*0.9) * 1000 # 2s default.
+        self.lifespan = (random.random()*base_life) * 1000 # 2s default.
+        self.color = color
 
         self.max_dura = self.lifespan
         self.dead = False
@@ -76,9 +132,10 @@ class Particle(pygame.sprite.Sprite):
 
         self.rect.center = self.s
 
-        color = int(255 * self.lifespan / self.max_dura)
-        if color <= 0: color = 0
-        self.image.fill((color, color, 0))
+        alpha = int(255 * self.lifespan / self.max_dura)
+        if alpha <= 0:
+            alpha = 0
+        self.image.fill((*self.color, alpha))
         return
 
 def get_random_particle():
@@ -109,64 +166,71 @@ def spawn_single(
         v,
         drag,
         g,
-        group=mess
+        group=mess,
+        color=(210, 210, 0)
     ):
     part = Particle(
         init_s=s,
         init_v=v,
         drag=drag,
-        g=g
+        g=g,
+        color=color
     )
     group.add(part)
     return None
 
+# Set 'drag', 'g', 'group' as kwargs.
+@set_default_kw(_UNIFORM)
 def spawn_uniform(
         s,
         v,
-        n,
-        drag,
-        g,
-        group=mess
+        **kw
     ):
     s = Vector2(s)
-    for _ in range(n):
-        v = Vector2(0, 0)
+    for _ in range(kw['n']):
+        v = Vector2(v)
         # Method to spawn.
-        r = random.normalvariate(0.25, 0.09) * 150 + 200
+        r = random.normalvariate(
+            kw['r_mu'], 
+            kw['r_sigma']
+            ) * kw['r_rate'] + kw['r_base']
         phi = random.random() * 360
         # Method to spawn.
         v.from_polar((r, phi))
         spawn_single(
             s,
             v,
-            drag,
-            g,
-            group
+            kw['drag'],
+            kw['g'],
+            kw['group'],
+            kw['color']
         )
     return None
 
+# Set 'drag', 'g', 'group' as kwargs.
+@set_default_kw(_NORMALVAR)
 def spawn_normalvar(
         s,
         v,
-        n,
-        drag,
-        g,
-        group=mess
+        **kw
     ):
     s = Vector2(s)
-    for _ in range(n):
+    for _ in range(kw['n']):
         v = Vector2(0, 0)
         # Method to spawn.
-        r = random.normalvariate(0.25, 0.09) * 150 + 200
-        phi = random.normalvariate(-90, 15)
+        r = random.normalvariate(
+            kw['r_mu'],
+            kw['r_sigma']) * kw['r_rate'] + kw['r_base']
+        phi = random.normalvariate(kw['phi_mu'], kw['phi_sigma'])
         # Method to spawn.
         v.from_polar((r, phi))
         spawn_single(
             s,
             v,
-            drag,
-            g,
-            group
+            kw['drag'],
+            kw['g'],
+            kw['group'],
+            kw['color']
         )
     return None
 
@@ -215,6 +279,7 @@ def mouseact(pressed):
         expel_particles(mode='expel')
     return
 
+# Test block.
 if __name__ == '__main__':
     while RUNNING:
         CLOCK.tick(FPS)
@@ -239,9 +304,9 @@ if __name__ == '__main__':
             spawn_normalvar(
                 pygame.mouse.get_pos(),
                 (0, 0),
-                PPT,
-                1.1,
-                120,
+                n=PPT,
+                drag=1.1,
+                g=120,
                 group=mess
             )
 
