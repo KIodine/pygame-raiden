@@ -25,7 +25,6 @@
             pygame.quit()
             sys.exit(0)
 
-
     2. Skill module #2
         Create skill module before instanitiate
         psuedo code:
@@ -65,4 +64,13 @@
 
     7. Add 'spawn_at()' to 'MobHandle' #0
         ...
+    
+    8. Rank #0
+        Form:
+            #n      name    score
+            #n-1    ...     ...
+            ...     
+            #n-10   ...     ...
+            
+    9. Fade out/in while phase change #0
 '''
