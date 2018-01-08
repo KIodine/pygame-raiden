@@ -1,551 +1,514 @@
+# Native.-------------------------------------------------------------
 import sys
 import os
 import random
 import math
-from collections import namedtuple as _namedtuple
-
+import time
+import copy
+import weakref # Analyzing object lifespan.
+import logging
+from collections import deque, namedtuple
+from enum import Enum
+# Third-party.--------------------------------------------------------
 import pygame
+# Custom.-------------------------------------------------------------
 import config as cfg
+import animation
+import abilities
+import resource
+import characters
+import ui
+import particle
 
-# Pyden 0.25.1
+# Pyden 0.43.0
+'''Notes:
+    1. Seperate actions from player for further develope.
+        Add a 'Interface' class could be a solution, but clarify its structure
+        is more important.
+    2. (Suspended)Rename config module?
+    3. The way to share 'AnimationHandler', passing reference when initialize
+        related module?
+    4. 'Character', 'Mob', 'MobHandle' and someother are coupled with
+        'animation.AnimationHandle'(Note-3)
+    5. (OK)Use custom identifier than seperate group?
+'''
 
-img_struct = _namedtuple(
-        'Animation',
-        [
-            'image',
-            'w',
-            'h',
-            'col',
-            'row'
-         ]
-        )
+_zero = time.perf_counter() # Reference point.
 
-# Temporary disabled.
+logging.basicConfig(level=logging.WARNING)
 
-<<<<<<< HEAD
-try:
-    import pygame
-except:
-    raise
+# Set constants.------------------------------------------------------
 
-try:
-    import config as cfg
-    import snowflake as snf
-    import explode as exp
-    import bullet as blt
-    import die_explosion as d_exp
-    import consumables as csb
-    import hitbox as htb
-except:
-    raise
-	
-
-# Interstellar simulator 2017 ver. 0.11
-
-rdgray = lambda: random.choice(cfg.gray_scale_range)
-rdyellow = lambda: random.choice(cfg.yellow_range)
-rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
-shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
-rdsize = lambda: random.choices(
-    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1)
-=======
-##rdgray = lambda: random.choice(cfg.gray_scale_range)
-##rdspeed = lambda: cfg.rand_speed_floor + cfg.rand_speed_ciel * random.random()
-##shftspeed = lambda: random.choice([1, -1]) * (3 * random.random())
-##rdsize = lambda: random.choices(
-##    [(1, i*5) for i in range(1, 3+1)], [70, 30, 10], k=1
-##    )
-##rdyellow = lambda: random.choice(cfg.yellow_range)
->>>>>>> Architecture-Reconstruction
-
-dice = lambda chn: True if chn > random.random() * 100 else False
-
-# Set constants.
-
+FPS = 60
 W_WIDTH = cfg.W_WIDTH
 W_HEIGHT = cfg.W_HEIGHT
 DEFAULT_COLOR = cfg.default_bgcolor
 BLACK = cfg.color.black
 
-FPS = 60
+# Game constants and utilities.---------------------------------------
 
 DEV_MODE = True
+RUN_FLAG = True
+PAUSE = False
+KILL_COUNT = 0
+clock = pygame.time.Clock()
 
-# Switch DEV_MODE by 'F2' key.
-# Charge resource to full by 'F3' key.
+# F2: Switch DEV_MODE.
+# F3: Charge resource to full.
+# F4: Damage player for 50 points.
+# P: Pause game.
 
-# Init window.
+# Init pygame and display.--------------------------------------------
 
-pygame.init()
+npass, nfail = pygame.init()
+if nfail != 0:
+    if pygame.mixer.get_init() is None:
+        logging.warning("pygame mixer initialization failed.")
+    else:
+        logging.warning("Pygame component initialization failed")
 pygame.display.init()
 pygame.display.set_caption("Interstellar")
 
-screen = pygame.display.set_mode(cfg.W_SIZE, 0, 32)
+screen = pygame.display.set_mode(cfg.W_SIZE, 0, 32) # RGBA
 screen.fill(cfg.color.black)
 
-<<<<<<< HEAD
-font = pygame.font.Font('fonts/msjh.ttf', 24)
-
-screct = screen.get_rect()
-rocket = pygame.image.load("images/rocket02.png").convert_alpha()
-explode_image = 'images/explosion1.png'
-explode = pygame.image.load(explode_image).convert_alpha()
-ufo = pygame.image.load("../ufo.gif").convert_alpha()
-# Use 'convert_alpha()' for images have alpha channel.
-
-# It fails if the enviroment has no audio driver.
-try:
-    bullet_sound = "music/match0.wav"
-    #sound_file = 'music/beep1.ogg' # Need to be replaced.
-    #bgm = 'music/Diebuster OST- Escape Velocity.mp3'
-    bgm = cfg.bgm
-    dead_bgm = cfg.dead_bgm
-    volume_ratio = cfg.volume_ratio
-
-    pygame.mixer.music.load(bgm)
-    pygame.mixer.music.set_volume(volume_ratio)
-    pygame.mixer.music.play()
-except:
-    pass
-
-#Initialize complete.-------------------------------------------------
-
-def show_text(text, x, y):
-    x, y = x, y
-=======
 screen_rect = screen.get_rect()
 
-# Load resources.
+# Init containers.----------------------------------------------------
 
-    # Animations and images.
+sprite_group = pygame.sprite.Group() # Universal.
+projectile_group = pygame.sprite.Group() # Universal.
 
-test_grid_dir = 'images/Checkered.png'
-# The 'transparent' grid.
-test_grid = pygame.image.load(test_grid_dir).convert_alpha()
+animated_object_group = pygame.sprite.Group()
+
+ALL_GROUPS = list()
+ALL_GROUPS.extend(
+    [
+        sprite_group,
+        projectile_group,
+        animated_object_group
+    ]
+)
+# Identifier for camp.
+CampID = characters.CampID
+# Identifier for resource.
+ResID = resource.ResID
+
+# Load resources.-----------------------------------------------------
+
+if not os.path.exists('images'):
+    # A vscode issue.
+    try:
+        os.chdir('src')
+    except FileNotFoundError:
+        raise
+
+IMAGE_DIR = {
+    'explode': 'images/stone.png',
+    'ufo': 'images/ufo.gif',
+    'flash': 'images/explosion1.png',
+    'test_grid': 'images/Checkered.png' # The 'transparent' grid.
+}
+
+test_grid = pygame.image.load(IMAGE_DIR['test_grid']).convert_alpha()
 test_grid_partial = test_grid.subsurface(screen_rect)
 
-explode_dir = 'images/stone.png'
-# A explosion animation named 'stone', uh...
+FONT_DIR = {
+    'msjh': 'fonts/msjh.ttf'
+}
 
-ufo_dir = 'images/ufo.gif'
+FONT_SIZE = {
+    16, 24, 32, 40
+}
 
-rocket_dir = 'images/rocket02.png'
-# The rocket projectile.
+MSJH = {
+    i: pygame.font.Font(FONT_DIR['msjh'], i)
+    for i in FONT_SIZE
+}
 
-    # Fonts.
 msjh_dir = 'fonts/msjh.ttf'
 msjh_24 = pygame.font.Font(msjh_dir, 24)
 msjh_16 = pygame.font.Font(msjh_dir, 16)
 
-# Define simple functions.
+new_explode = animation.sequential_loader(
+    image=IMAGE_DIR['explode'],
+    w=50,
+    h=50,
+    col=1,
+    row=5
+)
 
-def show_text(text: str,
-              x,
-              y,
-              font=msjh_16,
-              color=cfg.color.white
-              ):
-    '''\
-Display text on x, y.\
-'''
->>>>>>> Architecture-Reconstruction
+new_ufo = animation.sequential_loader(
+    image=IMAGE_DIR['ufo'],
+    w=58,
+    h=34,
+    col=12
+)
+
+# The old-style loader, still using.
+flash = animation.loader(
+    image=IMAGE_DIR['flash'],
+    w=15,
+    h=15
+    )
+
+new_flash = animation.sequential_loader(
+    image=IMAGE_DIR['flash'],
+    w=15,
+    h=15
+)
+
+
+# Init custom modules.------------------------------------------------
+
+abilities.init(screen)
+assert abilities.is_initiated()
+
+# Functions.----------------------------------------------------------
+# Add a 'show_multiline' function?
+def show_text(
+        text: str,
+        x=0,
+        y=0,
+        font=MSJH[16],
+        color=cfg.color.white,
+        center=False
+    ):
+    """Show text on the screen."""
     if not isinstance(text, str):
         try:
             text = str(text)
         except:
             raise
-    rendered_text = font.render(text, True, color)
-    screen.blit(rendered_text, (x, y))
-    
+    rendered_text = font.render(
+        text, True, color
+    )
+    if center is True:
+        dx, dy = font.size(text)
+        dx //= 2
+        dy //= 2
+    else:
+        dx = dy = 0
+    screen.blit(
+        rendered_text, (x-dx, y-dy)
+    )
     return None
 
-def animation_loader(
-    image: pygame.Surface=None,
-    w=70,
-    h=70,
-    col=1,
-    row=1
-    ) -> img_struct:
-    '''\
-Resolve or packs necessary info into 'img_struct' container.\
-'''
-    # 'isinstance' can test both native and custom classes.
-    if image is not None:
-        if isinstance(image, pygame.Surface):
-            pass
-        elif os.path.exists(image):
-            # if it's not 'pygame.Surface', but a available path then:
-            image = pygame.image.load(image).convert_alpha()
-        else:
-            raise TypeError(f"Cannot resolve {image}")
-    struct = img_struct(
-        image=image,
-        w=w,
-        h=h,
-        col=col,
-        row=row
-        )
-    return struct
+# Classes.------------------------------------------------------------
 
-# Load resource
-explode = animation_loader(
-    image=explode_dir,
-    w=50,
-    h=50,
-    col=6,
-    row=5
-    )
+# Character.----------------------------------------------------------
 
-ufo = animation_loader(
-    image=ufo_dir,
-    w=58,
-    h=34,
-    col=12
-    )
+PLAYER_ATTRS = resource.RES_DICT(
+    {
+        ResID.HP: resource.default_player_hp(),
+        ResID.CHARGE: resource.default_player_charge(),
+        ResID.ULTIMATE: resource.default_player_ultimate()
+    }
+)
 
-def transparent_image(
-    w=50,
-    h=50
-    ) -> pygame.Surface:
-    surface = pygame.Surface(
-        (w, h),
-        pygame.SRCALPHA
-        )
-    surface.fill(
-        (0, 0, 0, 0)
-        )
-    return surface
+ENEMY_ATTRS = resource.RES_DICT(
+    {
+        ResID.HP: resource.default_enemy_hp()
+    }
+)
 
-class Animation_core():
-    '''Takes 'img_struct', resolve it into frame list.'''
-    def __init__(self,
-                 *,
-                 image_struct=None,
-                 ):
-        # Progessing: take 'img_struct' and resolve.
-        # Unpack data.
-        image, w, h, col, row = image_struct
-        
-        if image is None:
-            self.image = pygame.Surface((w, h), pygame.SRCALPHA)
-            self.rect = self.image.get_rect()
-            self.image.fill((0, 0, 0, 0))
-            pygame.draw.rect(self.image, (0, 255, 0, 255), (0, 0, w, h), 1)
-            self.index = None
-        elif isinstance(image, pygame.Surface):
-            self.index = 0
-            self.animation_list = []
-            self.master_image = image
-            for i in range(col):
-                for j in range(row):
-                    self.animation_list.append(
-                        [i*w, j*h, w, h]
-                        )
-            self.rect = pygame.rect.Rect(0, 0, w, h)
-            # Set a smaller collide rect for better player experience?
-            ani_rect = self.animation_list[self.index]
-            self.ani_len = len(self.animation_list)
-            self.image = self.master_image.subsurface(ani_rect)
-        else:
-            raise TypeError(
-                f"Expecting 'image_struct' type, got{image}"
-                )
-
-class resource():
-    '''Resource container.'''
-    __slots__ = [   # Fixed data structure.
-        'name',
-        'current_val',
-        'max_val',
-        'charge_val',
-        'charge_speed',
-        'last_charge',
-        'delay',
-        'delay_time',
-        'last_val'
-        ]
-    def __init__(self,
-                 *,
-                 name='NONE',
-                 init_val=100,
-                 max_val=100,
-                 charge_val=1,
-                 charge_speed=0.1,
-                 init_time=0,
-                 delay=False,
-                 delay_time=1
-                 ):
-        self.name = name
-        self.current_val = init_val
-        self.max_val = max_val
-        self.charge_val = charge_val
-        self.charge_speed=charge_speed
-        self.last_charge = init_time
-        
-        self.delay = delay
-        self.delay_time = delay_time
-        self.last_val = init_val
-
-    def __repr__(self):
-        s = "<{name}: {current_val}/{max_val} ({ratio:.1f}%)>"
-        return s.format(
-            name=self.name,
-            max_val=int(self.max_val),
-            current_val=int(self.current_val),
-            ratio=self.ratio*100
-            )
-
-    def recover(self, current_time):
-        '''Recover resource over time.'''
-        # The main method.
-        def is_available():
-            permission = False
-            # Short-circuit, if 'delay' is 'False', it won't eval the rear code.
-            if self.delay and self.last_val != self.current_val:
-                self.last_charge = current_time
-                # Reset last charge time(this is important).
-                self.last_charge += self.delay_time * 1000
-                self.last_val = self.current_val
-                
-            elapsed_time = current_time - self.last_charge
-            if elapsed_time > self.charge_speed * 1000\
-               and self.current_val < self.max_val:
-                permission = True
-                
-            return permission
-        
-        if is_available():
-            self.last_charge = current_time
-            self.current_val += self.charge_val
-            if self.current_val > self.max_val:
-                self.current_val = self.max_val
-            self.last_val = self.current_val
-        # Limit the minimum val to zero.
-        if self.current_val < 0: self.current_val = 0
-
-    def zero(self):
-        '''Reduce resource to zero.'''
-        self.current_val = 0
-
-    def _to_max(self):
-        '''Charge resource to its maximum value.'''
-        self.current_val = self.max_val
-
-    @property
-    def ratio(self):
-        c_val = self.current_val
-        if c_val < 0: c_val = 0
-        return c_val/self.max_val
-
-# Interactive objects.
-
-    # Define Charactor.
-
-class Character(pygame.sprite.Sprite):
-    
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 image=None
-                 ):
-        '''\
-If given a image, set 'w' and 'h' to the unit size of image,
-'col' and 'row' for frames.\
-'''
-        # Must be explictly.
-        super(Character, self).__init__()
-
-        Animation_core.__init__(
+class Character(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
+    '''Create player character for manipulation.'''
+    '''Dependencies.(which are not passed by params or inheritance.)
+        Depends on:
+            (1) enemy_group
+            (2) AnimationHandler
+            (3) abilities
+            (4) projectile_group
+            (5) hostile_projectile_group
+            (6) screen
+    '''
+    def __init__(
             self,
-            image_struct=image
+            *,
+            init_x=0,
+            init_y=0,
+            image=None,
+            attrs=None, # Add a 'camp' param to identify its group?
+            camp=None,
+            enemy=None
+        ):
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
+            self,
+            master=master,
+            frames=frames
             )
+        now = pygame.time.get_ticks()
 
         self.rect.center = init_x, init_y
 
         self.move_x_rate = 6
         self.move_y_rate = 6
-
-        now = pygame.time.get_ticks() # Get current time.
+        # Test for more generic way to limit firerate.
+        self.gcd = 0 # A player is permitted to fire if gcd <= 0.
 
         self.fire_rate = 12
         self.last_fire = now
-
-        # Set charge attr.
-        self.Charge = resource(
-            name='Charge',
-            init_val=0,
-            max_val=1000,
-            charge_val=3,
-            charge_speed=0.01,
-            init_time=now
-            )
-
-        self.Ult = resource(
-            name='Ultimate',
-            init_val=0,
-            max_val=2000,
-            charge_val=3,
-            charge_speed=0.01,
-            init_time=now
-            )
-
-<<<<<<< HEAD
-=======
-        self.Hp = resource(
-            name='Health',
-            init_val=100,
-            max_val=100,
-            charge_val=0.6,
-            charge_speed=0.02,
-            init_time=now,
-            delay=True,
-            delay_time=2
-            )
-
-        self._resource_list = [
-            self.Charge,
-            self.Ult,
-            self.Hp
-            ]
-
-        # Set fps.
+        # New attr mechanism.-----------------------------------------
+        self.attrs = copy.deepcopy(attrs) # Avoid reference to the object.
+        # ------------------------------------------------------------
+        self.camp = camp
+        self.enemy = enemy
+        # Overwritting attrs from 'NewCore'---------------------------
         self.fps = 24
         self.last_draw = now
+        # ------------------------------------------------------------
+        self.ult_active = False
 
     def actions(self, keypress):
         # Move: W A S D.
         # Normal attack: 'j'
         # Charged attack: 'k'
         # Ult: 'l'(L)
+        self.move(keypress)
+
+        if keypress[pygame.K_j] and not self.ult_active:
+            # Cast normal attack.
+            self.create_bullet(projectile_group)
+            return
+
+        if keypress[pygame.K_k] and not self.ult_active:
+            # Cast charged skill.
+            self.railgun()
+            return
+
+        if keypress[pygame.K_u] and not self.ult_active:
+            if self.attrs[ResID.ULTIMATE].ratio == 1:
+                print("<Ultimate activated>")
+                self.ult_active = True
+
+        if keypress[pygame.K_u] \
+           and self.ult_active \
+           and (self.attrs[ResID.ULTIMATE].ratio != 0):
+            self.laser()
+            self.attrs[ResID.ULTIMATE] -= 13
+        else:
+            if self.ult_active == True:
+                self.ult_active = False
+                print((
+                    "<Ultimate deactiveted,"
+                    " remaining energy: {u_ratio:.2f}%>".format(
+                        u_ratio=self.attrs[ResID.ULTIMATE].ratio * 100
+                        )
+                    ))
+        # ------------------------------------------------------------
+        return
+
+    def move(self, keypress):
+        '''Move player according to keypress, using WASD keys.'''
+        rect = self.rect
         if keypress[pygame.K_w] and self.rect.top > screen_rect.top:
-            self.rect.move_ip(0, -self.move_y_rate)
+            rect.move_ip(0, -self.move_y_rate)
         if keypress[pygame.K_s] and self.rect.bottom < screen_rect.bottom:
             self.rect.move_ip(0, self.move_y_rate)
         if keypress[pygame.K_a] and self.rect.left > screen_rect.left:
             self.rect.move_ip(-self.move_x_rate, 0)
         if keypress[pygame.K_d] and self.rect.right < screen_rect.right:
             self.rect.move_ip(self.move_x_rate, 0)
+        return
 
-        if keypress[pygame.K_KP8]: # Test.
-            print("<Pressed 'KP8'>")
-
-
-        if keypress[pygame.K_j]:
-            # Cast normal attack.
-            self._create_bullet(projectile_group)
-
-        if keypress[pygame.K_k]:
-            # Cast charged skill.
-            ratio = self.Charge.ratio
-            if self.Charge.ratio == 1:
-                self.Charge.zero()
-
-        if keypress[pygame.K_l]:
-            # Cast ult.
-            if self.Ult.ratio == 1:
-                self.Ult.zero()
-
-    def _create_bullet(self, projectile_group):
+    def create_bullet(self, projectile_group):
+        # Use identifier instead of group??
+        # if self.gcd >= 0:
+        #     return
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
+
         if now - self.last_fire > self.fire_rate**-1 * 1000:
             self.last_fire = now
-            pass
         else:
             return
-        # Default bullet for test.
-        image = pygame.Surface(
-            (5, 15)
-            )
-        image.fill(
-            (255, 255, 0) # yellow.
-            )
+        image = abilities.default_bullet(color=cfg.color.yellow)
         x, y = self.rect.midtop
-        w, h = image.get_rect().size
-        img = animation_loader(
+        bullet = abilities.Linear(
+            init_x=x + b_shift(),
+            init_y=y - 8,
             image=image,
-            w=w,
-            h=h
-            )
-        bullet = Projectile(
-            init_x=x+b_shift(),
-            init_y=y-8,
-            image=img
-            )
+            speed=1050,
+            dmg=22,
+            camp=self.camp,
+            shooter=self
+        )
         projectile_group.add(bullet)
-        
+        # self.gcd += bullet.cooldown
+        return
+
+    def laser(self):
+        # Test.
+        particle.spawn_normalvar(
+            self.rect.midtop,
+            (0, -350),
+            n=5,
+            drag=0.3
+            )
+        # Test.
+        bottom = self.rect.top - 8
+        top = 0
+        w = 14
+        h = self.rect.top - 8
+        rect = pygame.Rect(
+            (self.rect.centerx - w/2, 0),
+            (w, h)
+            )
+        pygame.draw.rect(
+            screen,
+            (0, 255, 0),
+            rect
+            )
+        # Test filter.------------------------------------------------
+        # CID filter in '_laser'.
+        enemies = [
+            sprite for sprite in sprite_group
+            if sprite.camp == CampID.ENEMY
+        ]
+        host_ps = [
+            projectile for projectile in projectile_group
+            if projectile.camp == CampID.ENEMY
+        ]
+        # ------------------------------------------------------------
+        for enemy in enemies:
+            if rect.colliderect(enemy.rect):
+                enemy.attrs[ResID.HP] -= 10
+                # Particle effect.
+                particle.spawn_normalvar(
+                    enemy.rect.midbottom,
+                    (0, -300),
+                    n=11
+                )
+                # Test.
+        for host_proj in host_ps:
+            if rect.colliderect(host_proj):
+                projectile_group.remove(host_proj)
+        return
+
+    def railgun(self):
+        ratio = self.attrs[ResID.CHARGE].ratio
+        if ratio != 1:
+            return
+        else:
+            rect = self.rect
+            w = 5
+            h = rect.top
+            x = rect.centerx - w / 2
+            y = 0
+            check_rect = pygame.Rect(
+                (x, y), (w, h)
+                )
+            # CID filter in 'railgun'.
+            collide_list = [
+                sprite for sprite in sprite_group
+                if check_rect.colliderect(sprite.rect)
+                if sprite.camp == CampID.ENEMY
+                ]
+            if collide_list:
+                collide_list.sort(
+                    key=lambda sprite: sprite.rect.centery - rect.centery,
+                    reverse=True
+                    )
+                hit = collide_list[0]
+                top = hit.rect.bottom
+                eff_bar = pygame.Rect(
+                    (x, top), (w, h - top)
+                    )
+                pygame.draw.rect(
+                    screen,
+                    (255, 255, 0),
+                    eff_bar
+                    )
+                AnimationHandler.draw_single(
+                    x=eff_bar.centerx,
+                    y=eff_bar.top,
+                    image=new_flash
+                    )
+                hit.attrs[ResID.HP] -= 120
+                # Only when the skill hits enemy then energy consume.
+                self.attrs[ResID.CHARGE]._to_zero()
+                self.attrs[ResID.ULTIMATE] += 120
 
     def update(self, current_time):
-        # Is there a way to seperate?
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-                
-        # Draw hitbox frame.
-        if DEV_MODE:
-            frame = pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            
-
-        for res in self._resource_list:
+        '''Push character to next status.'''
+        # Inheritate from 'animation.NewCore'.
+        self.to_next_frame(current_time)
+        # New firerate limit mechanism.-------------------------------
+        self.gcd -= clock.get_rawtime()
+        if self.gcd < 0:
+            self.gcd = 0
+        # ------------------------------------------------------------
+        for res in self.attrs.values():
             res.recover(current_time)
+        return
 
+# Mob.----------------------------------------------------------------
 
-    # End of Character.
-
-    # Define Mob.
-
-class Mob(pygame.sprite.Sprite):
-    '''This class is yet to be done.'''
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 image=None
-                 ):
-        super(Mob, self).__init__()
-
-        Animation_core.__init__(
+class Mob(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
+    '''Create mob object that oppose to player.'''
+    '''Dependencies
+        Depends on:
+            (1) screen
+            (2) abilities
+            (3) projectile_group(hostile_project_group)
+    '''
+    def __init__(
             self,
-            image_struct=image
+            *,
+            init_x=0,
+            init_y=0,
+            image=None,
+            attrs=None,
+            camp=None
+        ):
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
+            self,
+            master=master,
+            frames=frames
             )
 
         self.rect.center = init_x, init_y
 
         self.move_x_rate = 6
         self.move_y_rate = 6
-
+        # Spring move test.-------------------------------------------
+        self.float_v = 0.0
+        self.float_s = 0.0
+        self.dest_x, self.dest_y = self.rect.center
+        self.is_at_dest = True
+        self.dist_to_dest = 0.0
+        self.direct_v = pygame.math.Vector2(0, 0)
+        self.float_center = pygame.math.Vector2(0, 0)
+        self.base_v = pygame.math.Vector2(0, 0)
+        # Lock mechanism.
+        self.until_next_move = 0.0
+        self.ready_to_move = True
+        # Spring move test.-------------------------------------------
         now = pygame.time.get_ticks() # Get current time.
 
-        self.fire_rate = 1
-        self.last_fire = now
+        self.until_next_fire = 0
+        self.ready_to_fire = True
 
-        self.Hp = resource(
-            name='Hp',
-            charge_val=1, # Will not recover over time.
-            delay=True,
-            delay_time=1.5
-            )
+        self.attrs = attrs
 
-        self._resource_list = [
-            self.Hp
-            ]
-
-        # Set fps.
+        self.camp = camp
+        # Overwriting params from 'NewCore'.--------------------------
         self.fps = 24
         self.last_draw = now
 
-    def _draw_hpbar(self):
-        hp_ratio = int(100 * self.Hp.ratio)
+    def draw_hpbar(self):
+        hp_ratio = int(self.attrs[ResID.HP].ratio * 100)
         bar = pygame.rect.Rect(
             0, 0, hp_ratio, 6
             )
@@ -557,369 +520,460 @@ class Mob(pygame.sprite.Sprite):
             bar,
             0 # fill
             )
+        return
 
     def attack(self, projectile_group):
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
-        if now - self.last_fire > self.fire_rate**-1 * 1000:
-            self.last_fire = now
-            pass
+        rd_next = lambda: random.randint(500, 1300)
+        if self.ready_to_fire:
+            self.ready_to_fire = False
+            self.until_next_fire += rd_next()
         else:
             return
-        # Default bullet for test.
-        image = pygame.Surface(
-            (5, 15)
-            )
-        image.fill(
-            (255, 150, 0)
-            )
+        image = abilities.default_bullet(color=(255, 150, 0))
         x, y = self.rect.midbottom
-        w, h = image.get_rect().size
-        img = animation_loader(
-            image=image,
-            w=w,
-            h=h
-            )
-        bullet = Projectile(
+        bullet = abilities.Linear(
             init_x=x+b_shift(),
             init_y=y+8,
             direct=1,
-            image=img
-            )
+            camp=self.camp,
+            image=image,
+        )
         projectile_group.add(bullet)
+        return
+
+    def set_dest(self, x, y):
+        if not self.is_at_dest or not self.ready_to_move:
+            return
+        logging.debug(
+            f"<sprite({hex(id(self))}) has set its dest to ({x}, {y})>"
+            f"<Current: {self.rect.center}>"
+            )
+        self.base_v = pygame.math.Vector2(self.rect.center)
+        self.float_center = self.base_v
+        self.dest_x, self.dest_y = int(x), int(y)
+        self.dest_s = pygame.math.Vector2(
+            self.dest_x, self.dest_y
+        )
+        self.dist_to_dest = math.hypot(
+            (x - self.rect.centerx),
+            (y - self.rect.centery)
+        )
+        self.is_at_dest = False
+        self.ready_to_move = False
+        self.direct_v = pygame.math.Vector2(self.dest_x, self.dest_y) - \
+            self.base_v
+        self.direct_v = self.direct_v.normalize() # Get the direction vector.
+        return
+
+    def spring_move(self):
+        if self.is_at_dest:
+            return
+        # This is not a correct answer.
+        dest_x, dest_y = self.dest_x, self.dest_y
+        # Consts.--------------------------------------------------- #
+        pd = 0.03
+        td = 0.5
+        freq = 0.7
+        epsilon = 2
+        # Consts.--------------------------------------------------- #
+        vector_now = pygame.math.Vector2(self.rect.center)
+        t = clock.get_time()/1000
+        # Use 'Vector2'? How?
+        def spring(
+                x, v, xt,
+                zeta, omega, h
+            ):
+            """Damped spring move."""
+            f = 1.0 + 2.0 * h * zeta * omega
+            oo = omega * omega
+            hoo = h * oo
+            hhoo = h * hoo
+            detInv = 1.0 / (f + hhoo)
+            detX = f * x + h * v + hhoo * xt
+            detV = v + hoo * (xt - x)
+            x = detX * detInv
+            v = detV * detInv
+            return x, v
+
+        def omega(f):
+            """Translate frequency to angular velocity."""
+            o = 2 * math.pi * f
+            return o
+
+        def zeta(pd, td, o):
+            """Return damping ratio according to params."""
+            k = math.log(pd) / (-o * td)
+            return k
+
+        # New mechanism. ------------------------------------------- #
+        z = zeta(pd, td, omega(freq))
+        s_next, v_next = spring(
+            self.float_s, self.float_v, self.dist_to_dest,
+            z, omega(freq), t
+        )
+        # Problem(OK)
+        # print("Before", self.float_center, end='; ')
+        self.float_center = self.base_v + (s_next * self.direct_v)
+        # print("After", self.float_center)
+        # Problem(OK)
+        self.rect.center = self.float_center
+        # NOTE!:
+        #   Calibrate 'float_s' and 'float_v' after it reaches destination!
+        #   Otherwise it causes sudden movement at the start of next move!
+        self.float_s = s_next
+        self.float_v = v_next
+
+        # New mechanism. ------------------------------------------- #
+
+        # Judge.---------------------------------------------------- #
+        at_dest_x_fuzzy = abs(self.rect.centerx - self.dest_x) <= epsilon
+        at_dest_y_fuzzy = abs(self.rect.centery - self.dest_y) <= epsilon
+
+        if at_dest_x_fuzzy and at_dest_y_fuzzy:
+            logging.debug(f"<sprite({hex(id(self))}) is at its destnation.>")
+            self.is_at_dest = True
+            self.base_v = pygame.math.Vector2(self.rect.center)
+            # Reset params.
+            self.float_s = 0.0
+            self.float_v = 0.0
+            self.direction = pygame.math.Vector2(0, 0)
+            # Set until next move.
+            self.until_next_move = random.randint(4000, 6000)
+            # print(f"Until next move: {self.until_next_move/1000}")
+        # Judge.---------------------------------------------------- #
+        return None
 
     def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-                
-        for res in self._resource_list:
+        self.to_next_frame(current_time)
+        self.spring_move()
+        dt = clock.get_time()
+        for res in self.attrs.values():
             res.recover(current_time)
 
-        self._draw_hpbar()
-        
-        # Draw hitbox frame.
-        if DEV_MODE:
-            frame = pygame.draw.rect(
-                screen,
-                (255, 0, 0, 255), # red for enemy.
-                self.rect,
-                1
-                )
-            x, y = self.rect.bottomright
-            show_text(
-                self.Hp,
-                x,
-                y,
-                color=cfg.color.black
-                )
+        if not self.ready_to_fire:
+            # Relative mode.
+            self.until_next_fire -= dt
+            if self.until_next_fire <= 0:
+                self.until_next_fire = 0
+                self.ready_to_fire = True
 
+        if not self.ready_to_move and self.is_at_dest:
+            self.until_next_move -= dt
+            if self.until_next_move <= 0:
+                self.until_next_move = 0
+                self.ready_to_move = True
 
-    # End of Mob.
+        self.draw_hpbar()
 
-    # Define Animated_object
+# Skill handler.------------------------------------------------------
 
-class Animated_object(pygame.sprite.Sprite):
+# Instances.----------------------------------------------------------
 
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 image=None
-                 ):
->>>>>>> Architecture-Reconstruction
-
-        super(Animated_object, self).__init__()
-
-        Animation_core.__init__(
-            self,
-            image_struct=image
-            )
-
-<<<<<<< HEAD
-psuedo_player = htb.Hitbox(screct, rdyellow, w=46, h=200, image=rocket, ratio=0.5)
-=======
-        self.rect.center = init_x, init_y
->>>>>>> Architecture-Reconstruction
-
-        self.fps = 12
-        self.last_draw = pygame.time.get_ticks()
-
-    def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-        else:
-            pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            
-        if DEV_MODE:
-            frame = pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-            
-
-    # End of Animated_object.
-
-<<<<<<< HEAD
-enemy = htb.Hitbox(screct, rdyellow, y=60, w=58, image = ufo, h=34, color=(221, 0, 48), enemy=True, ratio=2)
-=======
-    # Define Projectile.
->>>>>>> Architecture-Reconstruction
-
-class Projectile(pygame.sprite.Sprite):
-    '''\
-Simple linear projectile.
-Minus direct for upward, positive direct for downward.\
-'''
-    def __init__(self,
-                 *,
-                 init_x=0,
-                 init_y=0,
-                 direct=-1,
-                 speed=10,
-                 dmg=10,
-                 image=None
-                 ):
-        
-        super(Projectile, self).__init__()
-
-        Animation_core.__init__(
-            self,
-            image_struct=image
-            )
-
-        now = pygame.time.get_ticks()
-
-        self.dmg = dmg
-        
-        self.rect.center = init_x, init_y
-        self.direct = direct
-        self.y_speed = speed
-        self.move_rate = 0.1
-        self.last_move = now
-
-        self.fps = 12
-        self.last_draw = now
-        
-    def update(self, current_time):
-        if self.index is not None:
-            elapsed_time = current_time - self.last_draw
-            if elapsed_time > self.fps**-1 * 1000:
-                self.index += 1
-                ani_rect = self.animation_list[self.index%self.ani_len]
-                self.image = self.master_image.subsurface(ani_rect)
-                self.last_draw = current_time
-        else:
-            pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                self.rect,
-                1
-                )
-        if current_time - self.last_move > self.move_rate:
-            self.rect.centery += self.y_speed * self.direct
-            self.last_move = current_time
-            
-        if DEV_MODE:
-            pygame.draw.rect(
-                    screen,
-                    (255, 0, 0, 255),
-                    self.rect.inflate(2, 2),
-                    1
-                    )
-
-
-    # End of Projectile.
-
-    # Define bullet type.
-
-def bullet_creator(btype: str):
-    # Working on it.
-    pass
-
-    # End of bullet type.
-
-    # Define Skill_panel.
-
-class Skill_panel(pygame.sprite.Sprite):
-    '''Skill charge instructor.'''
-    def __init__(self,
-                 *,
-                 x_pos=0,
-                 y_pos=0,
-                 border_expand=25,
-                 arc_color=(47, 89, 158, 190),
-                 rim_color=(0, 255, 255, 215),
-                 resource_name='',
-                 image=None
-                 ):
-
-        self.resource_name = resource_name
-        
-        super(Skill_panel, self).__init__()
-
-        Animation_core.__init__(
-            self,
-            image_struct=image
-            )
-
-        self.rect.topleft = x_pos, y_pos
-
-        self.border_expand = border_expand
-        self.arc_color = arc_color
-        self.rim_color = rim_color
-
-    def update(
-        self,
-        player: Character
-        ):
-        
-        res = getattr(player, self.resource_name) 
-        current_val = res.current_val
-        max_val = res.max_val
-        
-        ratio = res.ratio
-        outer_rect = self.rect.inflate(self.border_expand, self.border_expand)
-        
-        surf = pygame.Surface(outer_rect.size, pygame.SRCALPHA)
-        surf_rect = outer_rect.copy()
-        surf_rect.center = surf.get_rect().center
-        arc_rect = surf_rect.inflate(-10, -10)
-        
-        arc_ratio = ratio * (2*math.pi)
-        # 'arc' takes 'radius' as param.
-        # Variable arc indicates resource percentage.
-        pygame.draw.arc(
-            surf,
-            self.arc_color,
-            arc_rect,
-            (math.pi/2),
-            (math.pi/2 + arc_ratio),
-            15
-            )
-        if ratio == 1:
-            # Outer rim indicates resource is full.
-            c_center = outer_rect.center
-            pygame.draw.circle(
-                surf,
-                self.rim_color,
-                surf_rect.center,
-                int(outer_rect.width/2),
-                3
-                )
-        screen.blit(surf, (outer_rect.topleft))
-        if DEV_MODE:
-            pygame.draw.rect(
-                screen,
-                (0, 255, 0, 255),
-                outer_rect,
-                2
-                )
-
-
-    # End of Skill panel.
-
-# End of interactive objects.
-
-# Init objects.
-
-    # Player object.
 player = Character(
     init_x=screen_rect.centerx,
     init_y=screen_rect.centery + 100,
-    image=ufo
+    image=new_ufo,
+    attrs=PLAYER_ATTRS,
+    camp=CampID.PLAYER,
+    enemy=CampID.ENEMY
     )
 
-player_group = pygame.sprite.Group()
-player_group.add(player)
+sprite_group.add(player)
 
-enemy = Mob(
-    init_x=screen_rect.centerx-100,
-    init_y=screen_rect.centery,
-    image=ufo
+# hitbox drawer.------------------------------------------------------
+
+def draw_boxes():
+    '''Drawing outline of rects.'''
+    for sprite in sprite_group:
+        if sprite.camp == CampID.PLAYER:
+            fcolor = (0, 255, 0)
+        elif sprite.camp == CampID.ENEMY:
+            fcolor = (255, 0, 0)
+        frame = pygame.draw.rect(
+            screen,
+            fcolor,
+            sprite.rect,
+            1
+        )
+    for proj in projectile_group:
+        if proj.camp == CampID.PLAYER:
+            fcolor = (0, 255, 0)
+        elif proj.camp == CampID.ENEMY:
+            fcolor = (255, 0, 0)
+        frame = pygame.draw.rect(
+            screen,
+            fcolor,
+            proj.rect.inflate(2, 2),
+            1
+            )
+    for eff in animated_object_group:
+        frame = pygame.draw.rect(
+            screen,
+            (0, 255, 0),
+            eff.rect,
+            1
+            )
+    return
+
+# MobHandle.----------------------------------------------------------
+
+class MobHandle():
+    '''Managing group logics of Mob.'''
+    '''Dependencies
+        Depends on:
+            (1) screen
+            (2) Mob(class)
+            (3) ENEMY_ATTRS
+            (4) AnimationHandler
+            (5) dice
+            (6) CampID
+    '''
+    def __init__(
+            self,
+            *,
+            group=None,
+            animation_handler=None,
+            spawn_interval=1,
+            max_amount=10,
+            camp=None
+        ):
+        now = pygame.time.get_ticks()
+        self.group = group
+        self.animation_handler = animation_handler
+        self.next_spawn = now + spawn_interval * 1000
+        self.spawn_interval = spawn_interval * 1000
+        self.max_amount = max_amount
+        self.camp = camp
+
+    def refresh(self):
+        if self.group is None:
+            return
+        reset_next_spawn = lambda: current_time + self.spawn_interval
+        # The absolute spawntime, maybe relative spawntime is better?
+        current_time = pygame.time.get_ticks()
+
+        self.clear_deadbody(current_time)
+        self.attack_random()
+        self.move_sprite()
+
+        group = [
+            sprite for sprite in self.group
+            if sprite.camp == self.camp
+        ]
+
+        if len(group) < self.max_amount:
+            if current_time > self.next_spawn:
+                self.spawn_random_pos()
+                self.next_spawn = reset_next_spawn() # Reset.
+        else:
+            self.next_spawn = reset_next_spawn()
+        return
+
+    def spawn_random_pos(self):
+        """Spawn a mob at random place without overlap the others."""
+        safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
+        safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
+        enemy = Mob(
+            init_x=safe_x_pos(),
+            init_y=safe_y_pos(),
+            image=new_ufo,
+            attrs=copy.deepcopy(ENEMY_ATTRS),
+            camp=self.camp
+            )
+        while True:
+            # Try until the new sprite's rect does not overlap the existings.
+            if not pygame.sprite.spritecollide(
+                    enemy,
+                    self.group,
+                    False
+                ):
+                AnimationHandler.draw_multi_effects(
+                    x=enemy.rect.centerx,
+                    y=enemy.rect.centery,
+                    num=12,
+                    interval=0.05,
+                    image=new_flash,
+                    fps=6
+                )
+                break
+            else:
+                # if DEV_MODE:
+                #     print("<Collide detected, rearrange position.>")
+                enemy.rect.center = safe_x_pos(), safe_y_pos()
+        self.group.add(enemy)
+        return
+
+    def clear_deadbody(self, current_time):
+        '''Clear hostile that 'Hp' less/equal than zero.'''
+        global KILL_COUNT # Be aware!
+        # CID filter in '_clear_deadbody'
+        group = [
+            sprite for sprite in self.group
+            if sprite.camp == self.camp
+        ]
+        for hostile in group:
+            if hostile.attrs[ResID.HP].current_val <= 0:
+                self.group.remove(hostile)
+                KILL_COUNT += 1 # Global variable.
+                x, y = hostile.rect.center
+                self.animation_handler.draw_multi_effects(
+                    x=x,
+                    y=y,
+                    image=new_explode
+                    )
+                # Particle effect.
+                particle.spawn_uniform(
+                    hostile.rect.center,
+                    (0, 0),
+                    n=23,
+                    drag=1.1,
+                )
+                pass
+            pass
+        return
+
+    def attack_random(self):
+        '''Attack with n percent of chance.'''
+        # Filter sprite by CIDfilter.------------------------------- #
+        cid_group = characters.CIDfilter(self.group, self.camp)
+        ready_group = [
+            sprite for sprite in cid_group
+            if sprite.ready_to_fire
+            ]
+        member_count = len(ready_group)
+        k = member_count if member_count < 5 else 5
+        for hostile in random.choices(ready_group, k=k):
+            hostile.attack(projectile_group)
+        return
+
+    def move_sprite(self):
+        safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
+        safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
+        cid_group = characters.CIDfilter(self.group, self.camp)
+        ready_group = [
+            sprite for sprite in cid_group
+            if sprite.is_at_dest is True
+        ]
+        member_count = len(ready_group)
+        k = member_count if member_count < 5 else 5
+        for sprite in random.choices(ready_group, k=k):
+            sprite.set_dest(safe_x_pos(), safe_y_pos())
+            # Seems not suit?
+            # Splitting x and y is not right, treat as 'distance',
+            # then split into x and y vector.
+        return
+
+# Init handlers.------------------------------------------------------
+
+AnimationHandler = animation.AnimationHandle(
+    group=animated_object_group,
+    surface=screen
     )
 
-enemy_group = pygame.sprite.Group()
-enemy_group.add(enemy)
-
-    # projectile objects.
-projectile_group = pygame.sprite.Group()
-hostile_projectile_group = pygame.sprite.Group()
-
-    # Animated objects.
-explode_animation = Animated_object(
-    init_x=screen_rect.centerx,
-    init_y=screen_rect.centery-150,
-    image=explode
+player_bullets = abilities.BulletHandle(
+    shooter=player,
+    camp=CampID.PLAYER,
+    proj_group=projectile_group,
+    sprite_group=sprite_group,
+    target_camp=CampID.ENEMY,
+    collide_coef=1.2,
+    on_hit=flash
     )
 
-animated_object_group = pygame.sprite.Group()
-animated_object_group.add(explode_animation)
-
-    # Skill panel.
-
-blank100 = animation_loader(w=100, h=100)
-
-charge = Skill_panel(
-    x_pos=screen_rect.w-180,
-    y_pos=screen_rect.h-170,
-    border_expand=80,
-    resource_name='Ult',
-    image=blank100
+enemy_bullets = abilities.BulletHandle(
+    proj_group=projectile_group, # projectile_group
+    camp=CampID.ENEMY,
+    sprite_group=sprite_group,
+    target_camp=CampID.PLAYER,
+    collide_coef=0.7,
+    on_hit=flash
     )
 
-blank75 = animation_loader(w=75, h=75)
-
-charge2 = Skill_panel(
-    x_pos=screen_rect.w-350,
-    y_pos=screen_rect.h-110,
-    border_expand=50,
-    resource_name='Charge',
-    image=blank75
+MobHandler = MobHandle(
+    group=sprite_group, # sprite_group
+    animation_handler=AnimationHandler,
+    max_amount=17,
+    camp=CampID.ENEMY
     )
 
-blank80 = animation_loader(w=80, h=80)
-
-HP_monitor = Skill_panel(
-    x_pos=60,
-    y_pos=515,
-    border_expand=50,
-    resource_name='Hp',
-    arc_color=(25, 221, 0, 240),
-    image=blank80
+# Elapsed time during initialization.
+_elapsed_time = time.perf_counter() - _zero
+print(
+    "Time spent during initiate: {:.3f} ms".format(
+        _elapsed_time * 1000
+        )
     )
 
-UI_group = pygame.sprite.Group()
-UI_group.add(
-    charge,
-    charge2,
-    HP_monitor
-    )
+# hotkey_actions.-----------------------------------------------------
+# Not a elegant way.
+def hotkey_actions(events):
+    global DEV_MODE
+    global PAUSE
+    global RUN_FLAG
 
-# Define Handlers.
+    for event in events:
+        if event.type == pygame.QUIT:
+            # The 'X' button on righttop corner.
+            RUN_FLAG = False
+        elif event.type == pygame.KEYDOWN:
+            key = event.key
 
-def DEV_INFO(flag=DEV_MODE):
-    '''\
-Catches 'player' and 'event' param in global and show.\
-'''
-    if flag:
-        # Show character rect infos.
+            if key == pygame.K_ESCAPE:
+                RUN_FLAG = False
+                print("<Exit by 'ESC' key>")
+
+            if key == pygame.K_F2:
+                # Enable/disable develope mode.
+                DEV_MODE = not DEV_MODE
+                print(f"<DEV_MODE={DEV_MODE}>")
+
+            if key == pygame.K_F3:
+                print("<Charge resource to max>")
+                for sprite in sprite_group:
+                    for res in sprite.attrs.values():
+                        res._to_max()
+
+            if key == pygame.K_F4:
+                player.attrs[ResID.HP] -= 50
+
+            if key == pygame.K_p:
+                PAUSE = not PAUSE
+                print("<PAUSE>")
+                while PAUSE:
+                    Popup_window()
+                    '''
+                    event = pygame.event.wait()
+                    if event.type == pygame.KEYDOWN\
+                       and event.key == pygame.K_p:
+                        PAUSE = not PAUSE
+                        print("<ACTION>")
+                    '''
+        else:
+            pass
+        pass
+    return
+
+# dev_info.-----------------------------------------------------------
+# Not a elegant way.
+def dev_info(events):
+    '''Catches 'player' and 'event' param in global and show.'''
+    def event_info():
+        # If there is no event in 'events', for-loop will end immediatly,
+        # but 'event' is not changed and will remain its last result.
+        if 'event' in globals():
+            show_text(
+                event,
+                0,
+                0,
+                color=cfg.color.black
+                )
+            pass
+        return
+
+    def player_info():
+        # Display character rect infos.
         if 'player' in globals():
             show_text(
                 player.rect,
@@ -928,24 +982,37 @@ Catches 'player' and 'event' param in global and show.\
                 color=cfg.color.black
                 )
             show_text(
-            player.Hp,
-            170,
-            490,
-            color=cfg.color.black
-            )
-            # Show key infos.
-        if 'event' in globals():
-            show_text(
-                event,
-                0,
-                0,
+                player.attrs[ResID.HP],
+                170,
+                490,
                 color=cfg.color.black
                 )
+            pass
+        return
+
+    def enemy_info():
+        enemies = [
+            sprite for sprite in sprite_group
+            if sprite.camp == CampID.ENEMY
+        ]
+        for enemy in enemies:
+            x, y = enemy.rect.bottomright
+            show_text(
+                enemy.float_center,
+                x,
+                y,
+                color=cfg.color.black
+                )
+            pass
+        return
+
+    def game_info():
+        # Display misc infos.
         m_pos_x, m_pos_y = pygame.mouse.get_pos()
         show_text(
             f'<{m_pos_x}, {m_pos_y}>',
             m_pos_x,
-            m_pos_y,
+            m_pos_y-26,
             color=cfg.color.black
             )
         show_text(
@@ -954,252 +1021,360 @@ Catches 'player' and 'event' param in global and show.\
             33,
             color=cfg.color.purple
             )
+        show_text(
+            pygame.time.get_ticks(),
+            0,
+            66,
+            color=cfg.color.red
+            )
+        return
+
+    if DEV_MODE:
+        event_info()
+        player_info()
+        enemy_info()
+        game_info()
+        pass
+    return
+
+# Menu.---------------------------------------------------------------
+# Flags for each option of menu
+MENU_FLAG = True
+RANK_FLAG = False
+GAME_FLAG = False
+
+# Variable for main menu
+current_index = 0
+Selected = False
+options = [
+    "New Game",
+    "Rank",
+    "Exit"
+    ]
+
+# Escape/ Pause popup window------------------------------------------
+popup_option_selected = False
+index = 0
+def Popup_window():
+    global popup_option_selected
+    global PAUSE
+    global RUN_FLAG
+    global MENU_FLAG
+    global index
+    global Selected
+    # Option
+    option_pause = [
+        'resume',
+        'menu'
+        ]
+    # Main screen is 1024*640, choose 1/4 for popup window
+    window = {
+        'w':256,
+        'h':160,
+        'center_x':512,
+        'center_y':320
+        }
+    window_x = (screen_rect.w - window['w']) / 2
+    window_y = (screen_rect.h - window['h']) / 2
     
-
-class MobHandle():
-
-    def __init__(self,
-                 *,
-                 current_time,
-                 enemy_group=None,
-                 spawn_interval=2,
-                 max_amount=5
-                 ):
-        self.last_spawn = current_time
-        self.enemy_group = enemy_group
-        self.spawn_interval = spawn_interval * 1000
-        self.max_amount = max_amount
-
-    def __call__(self, current_time):
-        if self.enemy_group is None:
-            return
-        for hostile in self.enemy_group:
-            if hostile.Hp.current_val == 0:
-                enemy_group.remove(hostile)
-                self.last_spawn = current_time
-        if len(enemy_group) < self.max_amount:
-            elapsed_time = current_time - self.last_spawn
-            if elapsed_time > self.spawn_interval:
-                self._spawn_random_pos()
-                self.last_spawn = current_time # Reset.
-
-    def _spawn_random_pos(self):
-        enemy = Mob(
-                    init_x=random.randint(100, screen_rect.w-100),
-                    init_y=random.randint(100, screen_rect.h/2),
-                    image=ufo
+    # Draw window
+    pygame.draw.rect(
+        screen,
+        [0,0,0],
+        [window_x, window_y, window['w'], window['h']]
+        )
+    # Window Frame
+    pygame.draw.rect(
+        screen,
+        [255,0,0],
+        [window_x, window_y, window['w'], window['h']],
+        5
+        )
+    # Show Text
+    if not popup_option_selected:
+        for i in range(len(option_pause)):
+            if i == index:
+                show_text(
+                    option_pause[i],
+                    window['center_x'] - 15 * len(option_pause[i]),
+                    window['center_y'] + 50* i - 25 * len(option_pause),
+                    font=pygame.font.Font(msjh_dir, 45),
+                    color=cfg.color.yellow
                     )
-        self.enemy_group.add(enemy)
+            else:
+                show_text(
+                    option_pause[i],
+                    window['center_x'] - 15 * len(option_pause[i]),
+                    window['center_y'] + 50* i - 25 * len(option_pause),
+                    font=pygame.font.Font(msjh_dir, 45)
+                    )
 
-MobHandler = MobHandle(
-    current_time=pygame.time.get_ticks(),
-    enemy_group=enemy_group,
-    )
-
-# Init game loop.
-
-clock = pygame.time.Clock()
-Run_flag = True
-PAUSE = False
-
-# Start game loop.
-
-    # Main phase.
-while Run_flag:
-    clock.tick(FPS)
-    now = pygame.time.get_ticks()
-    screen.fill(BLACK)
-    screen.blit(test_grid_partial, (0, 0))
-
-    # Global hotkey actions.
-    events = pygame.event.get()
-    for event in events:
+        # Option Select
+        event = pygame.event.wait()
         if event.type == pygame.QUIT:
-            Run_flag = False
+            popup_option_selected = False
+            PAUSE = not PAUSE
+            RUN_FLAG = False
         elif event.type == pygame.KEYDOWN:
             key = event.key
-            
-            if key == pygame.K_ESCAPE:
-                Run_flag = False
-                print("<Exit by 'ESC' key>")
-                
-            if key == pygame.K_F2:
-                # Enable/disable develope mode.
-                DEV_MODE = not DEV_MODE
-                print(f"<DEV_MODE={DEV_MODE}>")
-                
-            if key == pygame.K_F3:
-                print("<Charge resource to max>")
-                for p_res in player._resource_list:
-                    p_res._to_max()
-                for e in enemy_group:
-                    for e_res in e._resource_list:
-                        e_res._to_max()
-                        
-            if key == pygame.K_F4:
-                player.Hp.current_val -= 50
-
-            if key == pygame.K_p:
+            if key == pygame.K_UP or key == pygame.K_w or key == pygame.K_DOWN or key == pygame.K_s:
+                index = (index + 1) % 2
+            if key == 13: # 13 means enter    
+                popup_option_selected = True
+            if key == pygame.K_p or key == pygame.K_ESCAPE:
+                popup_option_selected = False
                 PAUSE = not PAUSE
-                while PAUSE:
-                    event = pygame.event.wait()
-                    if event.type == pygame.KEYDOWN\
-                       and event.key == pygame.K_p:
-                        PAUSE = not PAUSE
-        else:
-            pass
-    
-    DEV_INFO(DEV_MODE)
-                
-    for e in enemy_group:
-        if dice(5):
-            e.attack(hostile_projectile_group)
-
-    keypress = pygame.key.get_pressed()
-
-    player.actions(keypress)
-
-    # Game process.
-
-    player_group.update(now)
-    player_group.draw(screen)
-
-    enemy_group.update(now)
-    enemy_group.draw(screen)
-    
-<<<<<<< HEAD
-    # Player's dead. EXPLOSION!!
-    if DIE_FLAG:
-        try:
-            pygame.mixer.music.stop()
-            pygame.mixer.music.load(dead_bgm)
-            pygame.mixer.music.set_volume(volume_ratio*8)
-            pygame.mixer.music.play(0)
-        except:
-            pass
-        if player_dead:
-            target_rect = psuedo_player.rect
-            end_messege = "You're DEAD"
-        if enemy_dead:
-            target_rect = enemy.rect
-            end_messege = "VICTORY!"
+                print("<ACTION>")
+    else: # Press Enter to selected
+        print(index)
+        if index == 0:
+            popup_option_selected = False
+            PAUSE = not PAUSE
+            print("<ACTION>")
+        elif index == 1:
+            GAME_FLAG = False
+            MENU_FLAG = True
+            popup_option_selected = False
+            PAUSE = not PAUSE
+            Selected = False
+    pygame.display.flip()
         
-        exp_spawn_interval = pygame.time.get_ticks() - last_spawn
-        if len(die_explosion_group) <= 5 and exp_spawn_interval > 200: # ms.
-            random_x = target_rect.centerx + random.randint(-25, 25)
-            random_y = target_rect.centery + random.randint(-25, 25)
-            die_exp = d_exp.Die_Explosion(random_x, random_y)
-            die_explosion_group.add(die_exp)
-            last_spawn = pygame.time.get_ticks()
+# Main phase.---------------------------------------------------------
+while RUN_FLAG:
+    # Menu ==========================================
+    if MENU_FLAG:
+        screen.fill(BLACK)
+        show_text(
+            "PYDEN",
+            350,
+            100,
+            font=pygame.font.Font(msjh_dir, 100)
+        )
+        if not Selected:
+            for i in range(len(options)):
+                if i == current_index:
+                    show_text(
+                        options[i],
+                        500,
+                        300 + i*100,
+                        font=pygame.font.Font(msjh_dir, 50),
+                        color=cfg.color.yellow
+                    )
+                else:
+                    show_text(
+                        options[i],
+                        500,
+                        300 + i*100,
+                        font=pygame.font.Font(msjh_dir, 50)
+                    )
+            # Option Select
+            event = pygame.event.wait()
+            if event.type == pygame.QUIT:
+                RUN_FLAG = False
+            elif event.type == pygame.KEYDOWN:
+                key = event.key
+                if key == pygame.K_UP or key == pygame.K_w:
+                    current_index = (current_index + 2) % 3
+                if key == pygame.K_DOWN or key == pygame.K_s:
+                    current_index = (current_index + 1) % 3
+                if key == 13: # 13 means enter    
+                    Selected = True
+                if key == pygame.K_ESCAPE:
+                    current_index = 2
+                    
+        else: # Press Enter to selected
+            MENU_FLAG = False
+            if current_index == 0: # New Game
+                GAME_FLAG = True
+            elif current_index == 1: # Rank
+                RANK_FLAG = True
+            elif current_index == 2: # Exit Game
+                RUN_FLAG = False
         
-        for die_exp in die_explosion_group:
-            if die_exp.ended:
-                die_explosion_group.remove(die_exp)
-
-##        die_explosion_group.add(die_explosion1)
-        die_explosion_group.update(pygame.time.get_ticks())
-        die_explosion_group.draw(screen)
-        show_text(end_messege,
-                  screct.centerx - 6*11,
-                  screct.centery - 12)
-        current_die_time = pygame.time.get_ticks()
-        if current_die_time - pre_die_time >= 5000:
+        pygame.display.flip() # update screen
+    # Rank ==========================================
+    elif RANK_FLAG:
+        screen.fill(BLACK)
+        show_text(
+            "PYDEN",
+            350,
+            100,
+            font=pygame.font.Font(msjh_dir, 100)
+        )
+        show_text(
+            "Rank",
+            500,
+            200,
+            font=pygame.font.Font(msjh_dir, 50),
+            color=cfg.color.yellow
+        )
+        event = pygame.event.wait()
+        if event.type == pygame.QUIT:
             RUN_FLAG = False
-    
-    # Projectile logics.
-    # Player:
-    if not DIE_FLAG:
-        bullet_group.draw(screen)
-        bullet_group.update()
-    if not DIE_FLAG:
-        pre_die_time = pygame.time.get_ticks()
-    for bullet in bullet_group:
-        if not screct.colliderect(bullet.rect):
-            # Remove bullets that out of screen.
-            bullet_group.remove(bullet)
-        for spr in pygame.sprite.spritecollide(bullet, enemy_group, False):
-            # Insert on-hit-animation here. -> Done.
-            
-            colcenterx = (spr.rect.centerx + bullet.rect.centerx)/2
-            colcentery = (spr.rect.centery + bullet.rect.centery)/2
-            print(colcenterx, colcentery)
-            
-            Explode_group.add(
-                exp.Explode(
-                    *bullet.rect.center, explode))
-            bullet_group.remove(bullet)
-            hits += 1
-            enemy_hp -= player_atk
-                
-            if enemy_hp <= 0:
-##                show_text("Victory!",
-##                          screct.centerx - 6*11,
-##                          screct.centery + 16)
-                print("Exit by victory.")
-                DIE_FLAG = True
-                enemy_dead = True
+        elif event.type == pygame.KEYDOWN:
+            key = event.key
+            if key == pygame.K_ESCAPE:
+                RANK_FLAG = False
+                MENU_FLAG = True
+                Selected = False
+        pygame.display.flip()
+    # Game ==========================================
+    elif GAME_FLAG:
+        clock.tick(FPS)
+        now = pygame.time.get_ticks()
+        # Background.-----------------------
+        if DEV_MODE:
+            screen.blit(test_grid_partial, (0, 0))
+        else:
+            screen.fill(BLACK)
+        #-----------------------------------
 
-    # Enemy:
-    if not DIE_FLAG:
-        enemy_bullet_group.draw(screen)
-        enemy_bullet_group.update()
-    for ebullet in enemy_bullet_group:
-        if not screct.colliderect(ebullet.rect):
-            # Remove bullets that out of screen.
-            enemy_bullet_group.remove(ebullet)
-        for espr in  pygame.sprite.spritecollide(ebullet, player_group, False):
-            # Insert on-hit-animation here. -> Done.
-            
-            colcenterx = (espr.rect.centerx + ebullet.rect.centerx)/2
-            colcentery = (espr.rect.centery + ebullet.rect.centery)/2
-            cldx, cldy = ebullet.rect.midtop
-            print(colcenterx, colcentery)
-=======
-    MobHandler(now)
+        events = pygame.event.get()
+        # Little trick to preserve last result of 'event'.
+        for event in events:
+            pass
+        # Action and info.------------------
+        hotkey_actions(events)
+        dev_info(events)
+        #-----------------------------------
+        keypress = pygame.key.get_pressed()
 
-    projectile_group.update(now)
-    projectile_group.draw(screen)
-    for proj in projectile_group:
-        if not screen_rect.contains(proj.rect):
-            projectile_group.remove(proj)
->>>>>>> Architecture-Reconstruction
-            
-        collides = pygame.sprite.spritecollide(
-            proj,
-            enemy_group,
-            False
+
+        # Update duplicate.-----------------------------------------------
+        player_bullets.refresh()
+        enemy_bullets.refresh()
+
+        projectile_group.update(now)
+        projectile_group.draw(screen)
+        # ----------------------------------------------------------------
+
+        # Transfer to handler?
+        player.actions(keypress)
+
+        sprite_group.update(now)
+        sprite_group.draw(screen)
+        MobHandler.refresh()
+        
+        # Test Vector2. ------------------------------------------------ #
+        # Nothing, just testing the 'pygame.math.Vector2' module.
+        # Confirmed that 'Vector2' object can use as tuple(or iterable) as well.
+        mouse_posv = pygame.math.Vector2(
+            pygame.mouse.get_pos()
+        )
+        mouse_vector = pygame.math.Vector2(
+            pygame.mouse.get_rel()
+        )
+        pygame.draw.line(
+            screen, (200, 255, 0),
+            mouse_posv, (mouse_posv + mouse_vector),
+            1
+        )
+        # -------------------------------------------------------------- #
+
+        # Testing New UI.----------------------------------------------- #
+        # Note: The params and layout is not polished yet!
+        # Debug, aligning.
+        if DEV_MODE:
+            pygame.draw.line(
+                screen, (128, 255, 0),
+                (player.rect.centerx - 250, player.rect.centery),
+                (player.rect.centerx + 250, player.rect.centery),
+                1
             )
-        for collided in collides:
-            collided.Hp.current_val -= proj.dmg
-            projectile_group.remove(proj)
-    # The above and below chunk can be combined into a for-loop.
-    hostile_projectile_group.update(now)
-    hostile_projectile_group.draw(screen)
-    for host_proj in hostile_projectile_group:
-        if not screen_rect.contains(host_proj):
-            hostile_projectile_group.remove(host_proj)
-
-        collides = pygame.sprite.spritecollide(
-            host_proj,
-            player_group,
-            False
+            pygame.draw.arc(
+                screen, (128, 255, 0),
+                player.rect.inflate(400, 400),
+                math.radians(180), math.radians(360),
+                1
             )
-        for collided in collides:
-            collided.Hp.current_val -= host_proj.dmg
-            hostile_projectile_group.remove(host_proj)
-
-    animated_object_group.update(now)
-    animated_object_group.draw(screen)
-
-    UI_group.draw(screen)
-    UI_group.update(
-        player
+            # The arc seems not drawing the 'final step'.
+        # Debug -------------------------------------------------------- #
+        # Use UIIntegrater to simplify drawing?
+        ui.expand_arc(
+            player,
+            ResID.HP,
+            screen,
+            radius=150,
+            ind_color=(0, 255, 255),
+            rim_width=4
         )
 
-    # End of game process.
+        ui.expand_arc(
+            player,
+            ResID.CHARGE,
+            screen,
+            radius=175,
+            base_angle=math.radians(210),
+            expand_angle=math.radians(25),
+            rim_color=(47, 89, 158),
+            ind_color=(0, 255, 255),
+            gap=math.radians(2.5)
+        )
 
-    pygame.display.flip() # Update screen.
+        ui.expand_arc(
+            player,
+            ResID.ULTIMATE,
+            screen,
+            radius=175,
+            base_angle=math.radians(300),
+            expand_angle=math.radians(50),
+            rim_color=(255, 175, 63),
+            ind_color=(0, 255, 255),
+            gap=math.radians(2.5)
+        )
 
-# End of game loop.
-pygame.quit()
-sys.exit(0)
+        if player.attrs[ResID.ULTIMATE].ratio == 1:
+            arrow_color = (0, 255, 255)
+        else:
+            arrow_color = (255, 255, 0)
+        ui.arrow_to(
+            screen,
+            player.rect.center,
+            270,
+            30,
+            color=arrow_color
+        )
+        # Not useful, just for experiment.
+        ui.sight_index(
+            player,
+            sprite_group,
+            CampID.ENEMY,
+            screen
+        )
+        # Testing new ui------------------------------------------------ #
+
+        # Test particle effects ---------------------------------------- #
+        for part in particle.mess:
+            if not (0 < part.rect.centerx < screen_rect.w)\
+            or part.rect.centery > screen_rect.h:
+                particle.mess.remove(part)
+            if part.dead:
+                particle.mess.remove(part)
+
+        particle.mess.update(clock.get_time())
+        particle.mess.draw(screen)
+        # Test particle effects ---------------------------------------- #
+
+        AnimationHandler.refresh()
+
+        if DEV_MODE:
+            color = cfg.color.black
+        else:
+            color = cfg.color.white
+        show_text(
+            f"KILLED: {KILL_COUNT}",
+            400,
+            550,
+            color=color
+            )
+        if DEV_MODE:
+            draw_boxes()
+
+        pygame.display.flip()
+        # End of game process.--------------------------------------------
+        pass
+# End of game loop.---------------------------------------------------
+
+if __name__ == '__main__':
+    pygame.quit()
+    sys.exit(0)
