@@ -19,7 +19,6 @@ import resource
 import characters
 import ui
 import particle
-import events
 
 # Pyden 0.43.0
 '''Notes:
@@ -164,8 +163,6 @@ new_flash = animation.sequential_loader(
 
 abilities.init(screen)
 assert abilities.is_initiated()
-
-EVENT_HANDLER = events.EventHandler(clock)
 
 # Functions.----------------------------------------------------------
 # Add a 'show_multiline' function?
@@ -774,17 +771,6 @@ class MobHandle():
             self.next_spawn = reset_next_spawn()
         return
 
-    def spawn_at(self, x, y):
-        enemy = Mob(
-            init_x=x,
-            init_y=y,
-            image=new_ufo,
-            attrs=copy.deepcopy(ENEMY_ATTRS),
-            camp=self.camp
-        )
-        self.group.add(enemy)
-        return
-
     def spawn_random_pos(self):
         """Spawn a mob at random place without overlap the others."""
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
@@ -920,22 +906,6 @@ print(
         )
     )
 
-EVENT_HANDLER.timed_event(
-    # Too complicate, pre-form with 'partial' is better?
-    MobHandler.spawn_at,
-    2000, # ms
-    screen_rect.w/2,
-    screen_rect.h/2
-)
-
-EVENT_HANDLER.timed_event(
-    AnimationHandler.draw_multi_effects,
-    2000,
-    x=screen_rect.w/2,
-    y=screen_rect.h/2,
-    image=new_explode
-)
-
 # hotkey_actions.-----------------------------------------------------
 # Not a elegant way.
 def hotkey_actions(events):
@@ -972,11 +942,14 @@ def hotkey_actions(events):
                 PAUSE = not PAUSE
                 print("<PAUSE>")
                 while PAUSE:
+                    Popup_window()
+                    '''
                     event = pygame.event.wait()
                     if event.type == pygame.KEYDOWN\
                        and event.key == pygame.K_p:
                         PAUSE = not PAUSE
                         print("<ACTION>")
+                    '''
         else:
             pass
         pass
@@ -1064,158 +1037,343 @@ def dev_info(events):
         pass
     return
 
+# Menu.---------------------------------------------------------------
+# Flags for each option of menu
+MENU_FLAG = True
+RANK_FLAG = False
+GAME_FLAG = False
+
+# Variable for main menu
+current_index = 0
+Selected = False
+options = [
+    "New Game",
+    "Rank",
+    "Exit"
+    ]
+
+# Escape/ Pause popup window------------------------------------------
+popup_option_selected = False
+index = 0
+def Popup_window():
+    global popup_option_selected
+    global PAUSE
+    global RUN_FLAG
+    global MENU_FLAG
+    global index
+    global Selected
+    # Option
+    option_pause = [
+        'resume',
+        'menu'
+        ]
+    # Main screen is 1024*640, choose 1/4 for popup window
+    window = {
+        'w':256,
+        'h':160,
+        'center_x':512,
+        'center_y':320
+        }
+    window_x = (screen_rect.w - window['w']) / 2
+    window_y = (screen_rect.h - window['h']) / 2
+    
+    # Draw window
+    pygame.draw.rect(
+        screen,
+        [0,0,0],
+        [window_x, window_y, window['w'], window['h']]
+        )
+    # Window Frame
+    pygame.draw.rect(
+        screen,
+        [255,0,0],
+        [window_x, window_y, window['w'], window['h']],
+        5
+        )
+    # Show Text
+    if not popup_option_selected:
+        for i in range(len(option_pause)):
+            if i == index:
+                show_text(
+                    option_pause[i],
+                    window['center_x'] - 15 * len(option_pause[i]),
+                    window['center_y'] + 50* i - 25 * len(option_pause),
+                    font=pygame.font.Font(msjh_dir, 45),
+                    color=cfg.color.yellow
+                    )
+            else:
+                show_text(
+                    option_pause[i],
+                    window['center_x'] - 15 * len(option_pause[i]),
+                    window['center_y'] + 50* i - 25 * len(option_pause),
+                    font=pygame.font.Font(msjh_dir, 45)
+                    )
+
+        # Option Select
+        event = pygame.event.wait()
+        if event.type == pygame.QUIT:
+            popup_option_selected = False
+            PAUSE = not PAUSE
+            RUN_FLAG = False
+        elif event.type == pygame.KEYDOWN:
+            key = event.key
+            if key == pygame.K_UP or key == pygame.K_w or key == pygame.K_DOWN or key == pygame.K_s:
+                index = (index + 1) % 2
+            if key == 13: # 13 means enter    
+                popup_option_selected = True
+            if key == pygame.K_p or key == pygame.K_ESCAPE:
+                popup_option_selected = False
+                PAUSE = not PAUSE
+                print("<ACTION>")
+    else: # Press Enter to selected
+        print(index)
+        if index == 0:
+            popup_option_selected = False
+            PAUSE = not PAUSE
+            print("<ACTION>")
+        elif index == 1:
+            GAME_FLAG = False
+            MENU_FLAG = True
+            popup_option_selected = False
+            PAUSE = not PAUSE
+            Selected = False
+    pygame.display.flip()
+        
 # Main phase.---------------------------------------------------------
 while RUN_FLAG:
-    clock.tick(FPS)
-    now = pygame.time.get_ticks()
-    # Background.-----------------------
-    if DEV_MODE:
-        screen.blit(test_grid_partial, (0, 0))
-    else:
+    # Menu ==========================================
+    if MENU_FLAG:
         screen.fill(BLACK)
-    #-----------------------------------
+        show_text(
+            "PYDEN",
+            350,
+            100,
+            font=pygame.font.Font(msjh_dir, 100)
+        )
+        if not Selected:
+            for i in range(len(options)):
+                if i == current_index:
+                    show_text(
+                        options[i],
+                        500,
+                        300 + i*100,
+                        font=pygame.font.Font(msjh_dir, 50),
+                        color=cfg.color.yellow
+                    )
+                else:
+                    show_text(
+                        options[i],
+                        500,
+                        300 + i*100,
+                        font=pygame.font.Font(msjh_dir, 50)
+                    )
+            # Option Select
+            event = pygame.event.wait()
+            if event.type == pygame.QUIT:
+                RUN_FLAG = False
+            elif event.type == pygame.KEYDOWN:
+                key = event.key
+                if key == pygame.K_UP or key == pygame.K_w:
+                    current_index = (current_index + 2) % 3
+                if key == pygame.K_DOWN or key == pygame.K_s:
+                    current_index = (current_index + 1) % 3
+                if key == 13: # 13 means enter    
+                    Selected = True
+                if key == pygame.K_ESCAPE:
+                    current_index = 2
+                    
+        else: # Press Enter to selected
+            MENU_FLAG = False
+            if current_index == 0: # New Game
+                GAME_FLAG = True
+            elif current_index == 1: # Rank
+                RANK_FLAG = True
+            elif current_index == 2: # Exit Game
+                RUN_FLAG = False
+        
+        pygame.display.flip() # update screen
+    # Rank ==========================================
+    elif RANK_FLAG:
+        screen.fill(BLACK)
+        show_text(
+            "PYDEN",
+            350,
+            100,
+            font=pygame.font.Font(msjh_dir, 100)
+        )
+        show_text(
+            "Rank",
+            500,
+            200,
+            font=pygame.font.Font(msjh_dir, 50),
+            color=cfg.color.yellow
+        )
+        event = pygame.event.wait()
+        if event.type == pygame.QUIT:
+            RUN_FLAG = False
+        elif event.type == pygame.KEYDOWN:
+            key = event.key
+            if key == pygame.K_ESCAPE:
+                RANK_FLAG = False
+                MENU_FLAG = True
+                Selected = False
+        pygame.display.flip()
+    # Game ==========================================
+    elif GAME_FLAG:
+        clock.tick(FPS)
+        now = pygame.time.get_ticks()
+        # Background.-----------------------
+        if DEV_MODE:
+            screen.blit(test_grid_partial, (0, 0))
+        else:
+            screen.fill(BLACK)
+        #-----------------------------------
 
-    events = pygame.event.get()
-    # Little trick to preserve last result of 'event'.
-    for event in events:
-        pass
-    # Action and info.------------------
-    hotkey_actions(events)
-    dev_info(events)
-    #-----------------------------------
-    keypress = pygame.key.get_pressed()
+        events = pygame.event.get()
+        # Little trick to preserve last result of 'event'.
+        for event in events:
+            pass
+        # Action and info.------------------
+        hotkey_actions(events)
+        dev_info(events)
+        #-----------------------------------
+        keypress = pygame.key.get_pressed()
 
-    EVENT_HANDLER.update()
-    # Update duplicate.-----------------------------------------------
-    player_bullets.refresh()
-    enemy_bullets.refresh()
 
-    projectile_group.update(now)
-    projectile_group.draw(screen)
-    # ----------------------------------------------------------------
+        # Update duplicate.-----------------------------------------------
+        player_bullets.refresh()
+        enemy_bullets.refresh()
 
-    # Transfer to handler?
-    player.actions(keypress)
+        projectile_group.update(now)
+        projectile_group.draw(screen)
+        # ----------------------------------------------------------------
 
-    sprite_group.update(now)
-    sprite_group.draw(screen)
-    MobHandler.refresh()
+        # Transfer to handler?
+        player.actions(keypress)
 
-    # Testing New UI.----------------------------------------------- #
-    # Note: The params and layout is not polished yet!
-    # Debug, aligning.
-    if DEV_MODE:
+        sprite_group.update(now)
+        sprite_group.draw(screen)
+        MobHandler.refresh()
+        
+        # Test Vector2. ------------------------------------------------ #
+        # Nothing, just testing the 'pygame.math.Vector2' module.
+        # Confirmed that 'Vector2' object can use as tuple(or iterable) as well.
+        mouse_posv = pygame.math.Vector2(
+            pygame.mouse.get_pos()
+        )
+        mouse_vector = pygame.math.Vector2(
+            pygame.mouse.get_rel()
+        )
         pygame.draw.line(
-            screen, (128, 255, 0),
-            (player.rect.centerx - 250, player.rect.centery),
-            (player.rect.centerx + 250, player.rect.centery),
+            screen, (200, 255, 0),
+            mouse_posv, (mouse_posv + mouse_vector),
             1
         )
-        pygame.draw.arc(
-            screen, (128, 255, 0),
-            player.rect.inflate(400, 400),
-            math.radians(180), math.radians(360),
-            1
+        # -------------------------------------------------------------- #
+
+        # Testing New UI.----------------------------------------------- #
+        # Note: The params and layout is not polished yet!
+        # Debug, aligning.
+        if DEV_MODE:
+            pygame.draw.line(
+                screen, (128, 255, 0),
+                (player.rect.centerx - 250, player.rect.centery),
+                (player.rect.centerx + 250, player.rect.centery),
+                1
+            )
+            pygame.draw.arc(
+                screen, (128, 255, 0),
+                player.rect.inflate(400, 400),
+                math.radians(180), math.radians(360),
+                1
+            )
+            # The arc seems not drawing the 'final step'.
+        # Debug -------------------------------------------------------- #
+        # Use UIIntegrater to simplify drawing?
+        ui.expand_arc(
+            player,
+            ResID.HP,
+            screen,
+            radius=150,
+            ind_color=(0, 255, 255),
+            rim_width=4
         )
-        # The arc seems not drawing the 'final step'.
-    # Debug -------------------------------------------------------- #
-    # Use UIIntegrater to simplify drawing?
-    ui.expand_arc(
-        player,
-        ResID.HP,
-        screen,
-        radius=150,
-        ind_color=(0, 255, 255),
-        rim_width=4
-    )
 
-    ui.expand_arc(
-        player,
-        ResID.CHARGE,
-        screen,
-        radius=175,
-        base_angle=math.radians(210),
-        expand_angle=math.radians(25),
-        rim_color=(47, 89, 158),
-        ind_color=(0, 255, 255),
-        gap=math.radians(2.5)
-    )
-
-    ui.expand_arc(
-        player,
-        ResID.ULTIMATE,
-        screen,
-        radius=175,
-        base_angle=math.radians(300),
-        expand_angle=math.radians(50),
-        rim_color=(255, 175, 63),
-        ind_color=(0, 255, 255),
-        gap=math.radians(2.5)
-    )
-
-    if player.attrs[ResID.ULTIMATE].ratio == 1:
-        arrow_color = (0, 255, 255)
-    else:
-        arrow_color = (255, 255, 0)
-    ui.arrow_to(
-        screen,
-        player.rect.center,
-        270,
-        30,
-        color=arrow_color
-    )
-    # Not useful, just for experiment.
-    ui.sight_index(
-        player,
-        sprite_group,
-        CampID.ENEMY,
-        screen
-    )
-    # Testing new ui------------------------------------------------ #
-
-    # Test particle effects ---------------------------------------- #
-    for part in particle.mess:
-        if not (0 < part.rect.centerx < screen_rect.w)\
-        or part.rect.centery > screen_rect.h:
-            particle.mess.remove(part)
-        if part.dead:
-            particle.mess.remove(part)
-
-    particle.mess.update(clock.get_time())
-    particle.mess.draw(screen)
-    # Test particle effects ---------------------------------------- #
-
-    AnimationHandler.refresh()
-
-    if DEV_MODE:
-        color = cfg.color.black
-    else:
-        color = cfg.color.white
-    show_text(
-        f"KILLED: {KILL_COUNT}",
-        400,
-        550,
-        color=color
+        ui.expand_arc(
+            player,
+            ResID.CHARGE,
+            screen,
+            radius=175,
+            base_angle=math.radians(210),
+            expand_angle=math.radians(25),
+            rim_color=(47, 89, 158),
+            ind_color=(0, 255, 255),
+            gap=math.radians(2.5)
         )
-    if DEV_MODE:
-        draw_boxes()
 
-    pygame.display.flip()
-    # End of game process.--------------------------------------------
-    pass
+        ui.expand_arc(
+            player,
+            ResID.ULTIMATE,
+            screen,
+            radius=175,
+            base_angle=math.radians(300),
+            expand_angle=math.radians(50),
+            rim_color=(255, 175, 63),
+            ind_color=(0, 255, 255),
+            gap=math.radians(2.5)
+        )
+
+        if player.attrs[ResID.ULTIMATE].ratio == 1:
+            arrow_color = (0, 255, 255)
+        else:
+            arrow_color = (255, 255, 0)
+        ui.arrow_to(
+            screen,
+            player.rect.center,
+            270,
+            30,
+            color=arrow_color
+        )
+        # Not useful, just for experiment.
+        ui.sight_index(
+            player,
+            sprite_group,
+            CampID.ENEMY,
+            screen
+        )
+        # Testing new ui------------------------------------------------ #
+
+        # Test particle effects ---------------------------------------- #
+        for part in particle.mess:
+            if not (0 < part.rect.centerx < screen_rect.w)\
+            or part.rect.centery > screen_rect.h:
+                particle.mess.remove(part)
+            if part.dead:
+                particle.mess.remove(part)
+
+        particle.mess.update(clock.get_time())
+        particle.mess.draw(screen)
+        # Test particle effects ---------------------------------------- #
+
+        AnimationHandler.refresh()
+
+        if DEV_MODE:
+            color = cfg.color.black
+        else:
+            color = cfg.color.white
+        show_text(
+            f"KILLED: {KILL_COUNT}",
+            400,
+            550,
+            color=color
+            )
+        if DEV_MODE:
+            draw_boxes()
+
+        pygame.display.flip()
+        # End of game process.--------------------------------------------
+        pass
 # End of game loop.---------------------------------------------------
-
-def main():
-    '''Main game logics.'''
-    return
-
-def rank():
-    '''Showing rank infos.'''
-    return
-
-def menu():
-    '''The loop that manages start, rank, quit.'''
-    return
 
 if __name__ == '__main__':
     pygame.quit()
