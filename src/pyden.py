@@ -19,6 +19,7 @@ import resource
 import characters
 import ui
 import particle
+import events
 
 # Pyden 0.43.0
 '''Notes:
@@ -163,6 +164,8 @@ new_flash = animation.sequential_loader(
 
 abilities.init(screen)
 assert abilities.is_initiated()
+
+EVENT_HANDLER = events.EventHandler(clock)
 
 # Functions.----------------------------------------------------------
 # Add a 'show_multiline' function?
@@ -771,6 +774,17 @@ class MobHandle():
             self.next_spawn = reset_next_spawn()
         return
 
+    def spawn_at(self, x, y):
+        enemy = Mob(
+            init_x=x,
+            init_y=y,
+            image=new_ufo,
+            attrs=copy.deepcopy(ENEMY_ATTRS),
+            camp=self.camp
+        )
+        self.group.add(enemy)
+        return
+
     def spawn_random_pos(self):
         """Spawn a mob at random place without overlap the others."""
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
@@ -905,6 +919,22 @@ print(
         _elapsed_time * 1000
         )
     )
+
+EVENT_HANDLER.timed_event(
+    # Too complicate, pre-form with 'partial' is better?
+    MobHandler.spawn_at,
+    2000, # ms
+    screen_rect.w/2,
+    screen_rect.h/2
+)
+
+EVENT_HANDLER.timed_event(
+    AnimationHandler.draw_multi_effects,
+    2000,
+    x=screen_rect.w/2,
+    y=screen_rect.h/2,
+    image=new_explode
+)
 
 # hotkey_actions.-----------------------------------------------------
 # Not a elegant way.
@@ -1055,7 +1085,7 @@ while RUN_FLAG:
     #-----------------------------------
     keypress = pygame.key.get_pressed()
 
-
+    EVENT_HANDLER.update()
     # Update duplicate.-----------------------------------------------
     player_bullets.refresh()
     enemy_bullets.refresh()
@@ -1070,22 +1100,6 @@ while RUN_FLAG:
     sprite_group.update(now)
     sprite_group.draw(screen)
     MobHandler.refresh()
-    
-    # Test Vector2. ------------------------------------------------ #
-    # Nothing, just testing the 'pygame.math.Vector2' module.
-    # Confirmed that 'Vector2' object can use as tuple(or iterable) as well.
-    mouse_posv = pygame.math.Vector2(
-        pygame.mouse.get_pos()
-    )
-    mouse_vector = pygame.math.Vector2(
-        pygame.mouse.get_rel()
-    )
-    pygame.draw.line(
-        screen, (200, 255, 0),
-        mouse_posv, (mouse_posv + mouse_vector),
-        1
-    )
-    # -------------------------------------------------------------- #
 
     # Testing New UI.----------------------------------------------- #
     # Note: The params and layout is not polished yet!
@@ -1190,6 +1204,18 @@ while RUN_FLAG:
     # End of game process.--------------------------------------------
     pass
 # End of game loop.---------------------------------------------------
+
+def main():
+    '''Main game logics.'''
+    return
+
+def rank():
+    '''Showing rank infos.'''
+    return
+
+def menu():
+    '''The loop that manages start, rank, quit.'''
+    return
 
 if __name__ == '__main__':
     pygame.quit()
