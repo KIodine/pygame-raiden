@@ -1170,6 +1170,141 @@ def Popup_window():
 # Game phase function. -----------------------------------------------
 def main():
     '''Main game logics.'''
+    clock.tick(FPS)
+    now = pygame.time.get_ticks()
+    # Background.-----------------------
+    if DEV_MODE:
+        screen.blit(test_grid_partial, (0, 0))
+    else:
+        screen.fill(BLACK)
+    #-----------------------------------
+
+    events = pygame.event.get()
+    # Little trick to preserve last result of 'event'.
+    for event in events:
+        pass
+    # Action and info.------------------
+    hotkey_actions(events)
+    dev_info(events)
+    #-----------------------------------
+    keypress = pygame.key.get_pressed()
+
+    EVENT_HANDLER.update()
+    # Update duplicate.-----------------------------------------------
+    player_bullets.refresh()
+    enemy_bullets.refresh()
+
+    projectile_group.update(now)
+    projectile_group.draw(screen)
+    # ----------------------------------------------------------------
+
+    # Transfer to handler?
+    player.actions(keypress)
+
+    sprite_group.update(now)
+    sprite_group.draw(screen)
+    MobHandler.refresh()
+
+    # Testing New UI.----------------------------------------------- #
+    # Note: The params and layout is not polished yet!
+    # Debug, aligning.
+    if DEV_MODE:
+        pygame.draw.line(
+            screen, (128, 255, 0),
+            (player.rect.centerx - 250, player.rect.centery),
+            (player.rect.centerx + 250, player.rect.centery),
+            1
+        )
+        pygame.draw.arc(
+            screen, (128, 255, 0),
+            player.rect.inflate(400, 400),
+            math.radians(180), math.radians(360),
+            1
+        )
+        # The arc seems not drawing the 'final step'.
+    # Debug -------------------------------------------------------- #
+    # Use UIIntegrater to simplify drawing?
+    ui.expand_arc(
+        player,
+        ResID.HP,
+        screen,
+        radius=150,
+        ind_color=(0, 255, 255),
+        rim_width=4
+    )
+
+    ui.expand_arc(
+        player,
+        ResID.CHARGE,
+        screen,
+        radius=175,
+        base_angle=math.radians(210),
+        expand_angle=math.radians(25),
+        rim_color=(47, 89, 158),
+        ind_color=(0, 255, 255),
+        gap=math.radians(2.5)
+    )
+
+    ui.expand_arc(
+        player,
+        ResID.ULTIMATE,
+        screen,
+        radius=175,
+        base_angle=math.radians(300),
+        expand_angle=math.radians(50),
+        rim_color=(255, 175, 63),
+        ind_color=(0, 255, 255),
+        gap=math.radians(2.5)
+    )
+
+    if player.attrs[ResID.ULTIMATE].ratio == 1:
+        arrow_color = (0, 255, 255)
+    else:
+        arrow_color = (255, 255, 0)
+    ui.arrow_to(
+        screen,
+        player.rect.center,
+        270,
+        30,
+        color=arrow_color
+    )
+    # Not useful, just for experiment.
+    ui.sight_index(
+        player,
+        sprite_group,
+        CampID.ENEMY,
+        screen
+    )
+    # Testing new ui------------------------------------------------ #
+
+    # Test particle effects ---------------------------------------- #
+    for part in particle.mess:
+        if not (0 < part.rect.centerx < screen_rect.w)\
+        or part.rect.centery > screen_rect.h:
+            particle.mess.remove(part)
+        if part.dead:
+            particle.mess.remove(part)
+
+    particle.mess.update(clock.get_time())
+    particle.mess.draw(screen)
+    # Test particle effects ---------------------------------------- #
+
+    AnimationHandler.refresh()
+
+    if DEV_MODE:
+        color = cfg.color.black
+    else:
+        color = cfg.color.white
+    show_text(
+        f"KILLED: {KILL_COUNT}",
+        400,
+        550,
+        color=color
+        )
+    if DEV_MODE:
+        draw_boxes()
+
+    pygame.display.flip()
     return
 
 def rank():
@@ -1276,141 +1411,7 @@ while RUN_FLAG:
         rank()
     # Game ==========================================
     elif GAME_FLAG:
-        clock.tick(FPS)
-        now = pygame.time.get_ticks()
-        # Background.-----------------------
-        if DEV_MODE:
-            screen.blit(test_grid_partial, (0, 0))
-        else:
-            screen.fill(BLACK)
-        #-----------------------------------
-
-        events = pygame.event.get()
-        # Little trick to preserve last result of 'event'.
-        for event in events:
-            pass
-        # Action and info.------------------
-        hotkey_actions(events)
-        dev_info(events)
-        #-----------------------------------
-        keypress = pygame.key.get_pressed()
-
-        EVENT_HANDLER.update()
-        # Update duplicate.-----------------------------------------------
-        player_bullets.refresh()
-        enemy_bullets.refresh()
-
-        projectile_group.update(now)
-        projectile_group.draw(screen)
-        # ----------------------------------------------------------------
-
-        # Transfer to handler?
-        player.actions(keypress)
-
-        sprite_group.update(now)
-        sprite_group.draw(screen)
-        MobHandler.refresh()
-
-        # Testing New UI.----------------------------------------------- #
-        # Note: The params and layout is not polished yet!
-        # Debug, aligning.
-        if DEV_MODE:
-            pygame.draw.line(
-                screen, (128, 255, 0),
-                (player.rect.centerx - 250, player.rect.centery),
-                (player.rect.centerx + 250, player.rect.centery),
-                1
-            )
-            pygame.draw.arc(
-                screen, (128, 255, 0),
-                player.rect.inflate(400, 400),
-                math.radians(180), math.radians(360),
-                1
-            )
-            # The arc seems not drawing the 'final step'.
-        # Debug -------------------------------------------------------- #
-        # Use UIIntegrater to simplify drawing?
-        ui.expand_arc(
-            player,
-            ResID.HP,
-            screen,
-            radius=150,
-            ind_color=(0, 255, 255),
-            rim_width=4
-        )
-
-        ui.expand_arc(
-            player,
-            ResID.CHARGE,
-            screen,
-            radius=175,
-            base_angle=math.radians(210),
-            expand_angle=math.radians(25),
-            rim_color=(47, 89, 158),
-            ind_color=(0, 255, 255),
-            gap=math.radians(2.5)
-        )
-
-        ui.expand_arc(
-            player,
-            ResID.ULTIMATE,
-            screen,
-            radius=175,
-            base_angle=math.radians(300),
-            expand_angle=math.radians(50),
-            rim_color=(255, 175, 63),
-            ind_color=(0, 255, 255),
-            gap=math.radians(2.5)
-        )
-
-        if player.attrs[ResID.ULTIMATE].ratio == 1:
-            arrow_color = (0, 255, 255)
-        else:
-            arrow_color = (255, 255, 0)
-        ui.arrow_to(
-            screen,
-            player.rect.center,
-            270,
-            30,
-            color=arrow_color
-        )
-        # Not useful, just for experiment.
-        ui.sight_index(
-            player,
-            sprite_group,
-            CampID.ENEMY,
-            screen
-        )
-        # Testing new ui------------------------------------------------ #
-
-        # Test particle effects ---------------------------------------- #
-        for part in particle.mess:
-            if not (0 < part.rect.centerx < screen_rect.w)\
-            or part.rect.centery > screen_rect.h:
-                particle.mess.remove(part)
-            if part.dead:
-                particle.mess.remove(part)
-
-        particle.mess.update(clock.get_time())
-        particle.mess.draw(screen)
-        # Test particle effects ---------------------------------------- #
-
-        AnimationHandler.refresh()
-
-        if DEV_MODE:
-            color = cfg.color.black
-        else:
-            color = cfg.color.white
-        show_text(
-            f"KILLED: {KILL_COUNT}",
-            400,
-            550,
-            color=color
-            )
-        if DEV_MODE:
-            draw_boxes()
-
-        pygame.display.flip()
+        main()
         # End of game process.--------------------------------------------
         pass
 # End of game loop.---------------------------------------------------
