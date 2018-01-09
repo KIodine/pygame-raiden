@@ -19,6 +19,7 @@ import resource
 import characters
 import ui
 import particle
+import events
 
 # Pyden 0.43.0
 '''Notes:
@@ -163,6 +164,8 @@ new_flash = animation.sequential_loader(
 
 abilities.init(screen)
 assert abilities.is_initiated()
+
+EVENT_HANDLER = events.EventHandler(clock)
 
 # Functions.----------------------------------------------------------
 # Add a 'show_multiline' function?
@@ -771,6 +774,17 @@ class MobHandle():
             self.next_spawn = reset_next_spawn()
         return
 
+    def spawn_at(self, x, y):
+        enemy = Mob(
+            init_x=x,
+            init_y=y,
+            image=new_ufo,
+            attrs=copy.deepcopy(ENEMY_ATTRS),
+            camp=self.camp
+        )
+        self.group.add(enemy)
+        return
+
     def spawn_random_pos(self):
         """Spawn a mob at random place without overlap the others."""
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
@@ -906,6 +920,22 @@ print(
         )
     )
 
+EVENT_HANDLER.timed_event(
+    # Too complicate, pre-form with 'partial' is better?
+    MobHandler.spawn_at,
+    2000, # ms
+    screen_rect.w/2,
+    screen_rect.h/2
+)
+
+EVENT_HANDLER.timed_event(
+    AnimationHandler.draw_multi_effects,
+    2000,
+    x=screen_rect.w/2,
+    y=screen_rect.h/2,
+    image=new_explode
+)
+
 # hotkey_actions.-----------------------------------------------------
 # Not a elegant way.
 def hotkey_actions(events):
@@ -1036,7 +1066,6 @@ def dev_info(events):
         game_info()
         pass
     return
-
 # Menu.---------------------------------------------------------------
 # Flags for each option of menu
 MENU_FLAG = True
@@ -1126,7 +1155,6 @@ def Popup_window():
                 PAUSE = not PAUSE
                 print("<ACTION>")
     else: # Press Enter to selected
-        print(index)
         if index == 0:
             popup_option_selected = False
             PAUSE = not PAUSE
@@ -1138,86 +1166,114 @@ def Popup_window():
             PAUSE = not PAUSE
             Selected = False
     pygame.display.flip()
-        
-# Main phase.---------------------------------------------------------
-while RUN_FLAG:
-    # Menu ==========================================
-    if MENU_FLAG:
-        screen.fill(BLACK)
-        show_text(
-            "PYDEN",
-            350,
-            100,
-            font=pygame.font.Font(msjh_dir, 100)
-        )
-        if not Selected:
-            for i in range(len(options)):
-                if i == current_index:
-                    show_text(
-                        options[i],
-                        500,
-                        300 + i*100,
-                        font=pygame.font.Font(msjh_dir, 50),
-                        color=cfg.color.yellow
-                    )
-                else:
-                    show_text(
-                        options[i],
-                        500,
-                        300 + i*100,
-                        font=pygame.font.Font(msjh_dir, 50)
-                    )
-            # Option Select
-            event = pygame.event.wait()
-            if event.type == pygame.QUIT:
-                RUN_FLAG = False
-            elif event.type == pygame.KEYDOWN:
-                key = event.key
-                if key == pygame.K_UP or key == pygame.K_w:
-                    current_index = (current_index + 2) % 3
-                if key == pygame.K_DOWN or key == pygame.K_s:
-                    current_index = (current_index + 1) % 3
-                if key == 13: # 13 means enter    
-                    Selected = True
-                if key == pygame.K_ESCAPE:
-                    current_index = 2
-                    
-        else: # Press Enter to selected
-            MENU_FLAG = False
-            if current_index == 0: # New Game
-                GAME_FLAG = True
-            elif current_index == 1: # Rank
-                RANK_FLAG = True
-            elif current_index == 2: # Exit Game
-                RUN_FLAG = False
-        
-        pygame.display.flip() # update screen
-    # Rank ==========================================
-    elif RANK_FLAG:
-        screen.fill(BLACK)
-        show_text(
-            "PYDEN",
-            350,
-            100,
-            font=pygame.font.Font(msjh_dir, 100)
-        )
-        show_text(
-            "Rank",
-            500,
-            200,
-            font=pygame.font.Font(msjh_dir, 50),
-            color=cfg.color.yellow
-        )
+
+# Game phase function. -----------------------------------------------
+def main():
+    '''Main game logics.'''
+    return
+
+def rank():
+    global RANK_FLAG
+    global RUN_FLAG
+    global MENU_FLAG
+    global Selected
+    '''Showing rank infos.'''
+    screen.fill(BLACK)
+    show_text(
+        "PYDEN",
+        350,
+        100,
+        font=pygame.font.Font(msjh_dir, 100)
+    )
+    show_text(
+        "Rank",
+        500,
+        200,
+        font=pygame.font.Font(msjh_dir, 50),
+        color=cfg.color.yellow
+    )
+    event = pygame.event.wait()
+    if event.type == pygame.QUIT:
+        RUN_FLAG = False
+    elif event.type == pygame.KEYDOWN:
+        key = event.key
+        if key == pygame.K_ESCAPE:
+            RANK_FLAG = False
+            MENU_FLAG = True
+            Selected = False
+    pygame.display.flip()
+    return
+
+def menu():
+    global Selected
+    global RUN_FLAG
+    global MENU_FLAG
+    global RANK_FLAG
+    global GAME_FLAG
+    global current_index
+    '''The loop that manages start, rank, quit.'''
+    screen.fill(BLACK)
+    show_text(
+        "PYDEN",
+        350,
+        100,
+        font=pygame.font.Font(msjh_dir, 100)
+    )
+    if not Selected:
+        for i in range(len(options)):
+            if i == current_index:
+                show_text(
+                    options[i],
+                    500,
+                    300 + i*100,
+                    font=pygame.font.Font(msjh_dir, 50),
+                    color=cfg.color.yellow
+                )
+            else:
+                show_text(
+                    options[i],
+                    500,
+                    300 + i*100,
+                    font=pygame.font.Font(msjh_dir, 50)
+                )
+        # Option Select
         event = pygame.event.wait()
         if event.type == pygame.QUIT:
             RUN_FLAG = False
         elif event.type == pygame.KEYDOWN:
             key = event.key
+            if key == pygame.K_UP or key == pygame.K_w:
+                current_index = (current_index + 2) % 3
+            if key == pygame.K_DOWN or key == pygame.K_s:
+                current_index = (current_index + 1) % 3
+            if key == 13: # 13 means enter    
+                Selected = True
             if key == pygame.K_ESCAPE:
-                RANK_FLAG = False
-                MENU_FLAG = True
-                Selected = False
-        pygame.display.flip()
+                current_index = 2
+                
+    else: # Press Enter to selected
+        MENU_FLAG = False
+        if current_index == 0: # New Game
+            print('GAME_FLAG ON')
+            GAME_FLAG = True
+        elif current_index == 1: # Rank
+            print('RANK_FLAG ON')
+            RANK_FLAG = True
+        elif current_index == 2: # Exit Game
+            RUN_FLAG = False
+    
+    pygame.display.flip() # update screen
+
+    return
+
+# Main phase.---------------------------------------------------------
+while RUN_FLAG:
+    # Menu ==========================================
+    if MENU_FLAG:
+        menu()
+    # Rank ==========================================
+    elif RANK_FLAG:
+        rank()
     # Game ==========================================
     elif GAME_FLAG:
         clock.tick(FPS)
@@ -1239,7 +1295,7 @@ while RUN_FLAG:
         #-----------------------------------
         keypress = pygame.key.get_pressed()
 
-
+        EVENT_HANDLER.update()
         # Update duplicate.-----------------------------------------------
         player_bullets.refresh()
         enemy_bullets.refresh()
@@ -1254,22 +1310,6 @@ while RUN_FLAG:
         sprite_group.update(now)
         sprite_group.draw(screen)
         MobHandler.refresh()
-        
-        # Test Vector2. ------------------------------------------------ #
-        # Nothing, just testing the 'pygame.math.Vector2' module.
-        # Confirmed that 'Vector2' object can use as tuple(or iterable) as well.
-        mouse_posv = pygame.math.Vector2(
-            pygame.mouse.get_pos()
-        )
-        mouse_vector = pygame.math.Vector2(
-            pygame.mouse.get_rel()
-        )
-        pygame.draw.line(
-            screen, (200, 255, 0),
-            mouse_posv, (mouse_posv + mouse_vector),
-            1
-        )
-        # -------------------------------------------------------------- #
 
         # Testing New UI.----------------------------------------------- #
         # Note: The params and layout is not polished yet!
