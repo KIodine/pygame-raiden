@@ -75,6 +75,12 @@ screen.fill(cfg.color.black)
 
 screen_rect = screen.get_rect()
 
+# Init sound effect.--------------------------------------------------
+pygame.mixer.init()
+sound_shoot = pygame.mixer.Sound('music/lasergun.wav')
+sound_menu_selecting = pygame.mixer.Sound('music/menu_selecting.wav')
+sound_menu_confirm = pygame.mixer.Sound('music/menu_confirm.wav')
+
 # Init containers.----------------------------------------------------
 
 sprite_group = pygame.sprite.Group() # Universal.
@@ -333,6 +339,8 @@ class Character(
             return
         image = abilities.default_bullet(color=cfg.color.yellow)
         x, y = self.rect.midtop
+        # Shooting sound
+        sound_shoot.play()
         bullet = abilities.Linear(
             init_x=x + b_shift(),
             init_y=y - 8,
@@ -1147,8 +1155,10 @@ def Popup_window():
         elif event.type == pygame.KEYDOWN:
             key = event.key
             if key == pygame.K_UP or key == pygame.K_w or key == pygame.K_DOWN or key == pygame.K_s:
+                sound_menu_selecting.play()
                 index = (index + 1) % 2
-            if key == 13: # 13 means enter    
+            if key == 13: # 13 means enter
+                sound_menu_confirm.play()
                 popup_option_selected = True
             if key == pygame.K_p or key == pygame.K_ESCAPE:
                 popup_option_selected = False
@@ -1378,10 +1388,13 @@ def menu():
         elif event.type == pygame.KEYDOWN:
             key = event.key
             if key == pygame.K_UP or key == pygame.K_w:
+                sound_menu_selecting.play()
                 current_index = (current_index + 2) % 3
             if key == pygame.K_DOWN or key == pygame.K_s:
+                sound_menu_selecting.play()
                 current_index = (current_index + 1) % 3
-            if key == 13: # 13 means enter    
+            if key == 13: # 13 means enter
+                sound_menu_confirm.play()
                 Selected = True
             if key == pygame.K_ESCAPE:
                 current_index = 2
