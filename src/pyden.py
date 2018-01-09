@@ -80,6 +80,10 @@ pygame.mixer.init()
 sound_shoot = pygame.mixer.Sound('music/lasergun.wav')
 sound_menu_selecting = pygame.mixer.Sound('music/menu_selecting.wav')
 sound_menu_confirm = pygame.mixer.Sound('music/menu_confirm.wav')
+sound_mob_spawn = pygame.mixer.Sound('music/mob_spawn.wav')
+
+channel_shoot = pygame.mixer.Channel(0)
+channel_mob_spawn = pygame.mixer.Channel(1)
 
 # Init containers.----------------------------------------------------
 
@@ -114,7 +118,9 @@ IMAGE_DIR = {
     'explode': 'images/stone.png',
     'ufo': 'images/ufo.gif',
     'flash': 'images/explosion1.png',
-    'test_grid': 'images/Checkered.png' # The 'transparent' grid.
+    'test_grid': 'images/Checkered.png', # The 'transparent' grid.
+    'elite': 'images/elite.png',
+    'boss': 'images/boss.png'
 }
 
 test_grid = pygame.image.load(IMAGE_DIR['test_grid']).convert_alpha()
@@ -147,6 +153,13 @@ new_explode = animation.sequential_loader(
 
 new_ufo = animation.sequential_loader(
     image=IMAGE_DIR['ufo'],
+    w=58,
+    h=34,
+    col=12
+)
+
+new_elite = animation.sequential_loader(
+    image=IMAGE_DIR['elite'],
     w=58,
     h=34,
     col=12
@@ -340,7 +353,10 @@ class Character(
         image = abilities.default_bullet(color=cfg.color.yellow)
         x, y = self.rect.midtop
         # Shooting sound
-        sound_shoot.play()
+        try:
+            channel_shoot.play(sound_shoot)
+        except Exception:
+            pass
         bullet = abilities.Linear(
             init_x=x + b_shift(),
             init_y=y - 8,
@@ -479,7 +495,8 @@ class Mob(
             init_y=0,
             image=None,
             attrs=None,
-            camp=None
+            camp=None,
+            elite=False
         ):
         master, frames = image
         pygame.sprite.Sprite.__init__(self)
@@ -518,6 +535,9 @@ class Mob(
         self.fps = 24
         self.last_draw = now
 
+        # Elite.------------------------------------------------------
+        self.elite = elite
+
     def draw_hpbar(self):
         hp_ratio = int(self.attrs[ResID.HP].ratio * 100)
         bar = pygame.rect.Rect(
@@ -536,22 +556,43 @@ class Mob(
     def attack(self, projectile_group):
         now = pygame.time.get_ticks()
         b_shift = lambda: random.randint(-2, 2)
-        rd_next = lambda: random.randint(500, 1300)
-        if self.ready_to_fire:
-            self.ready_to_fire = False
-            self.until_next_fire += rd_next()
-        else:
-            return
-        image = abilities.default_bullet(color=(255, 150, 0))
         x, y = self.rect.midbottom
-        bullet = abilities.Linear(
-            init_x=x+b_shift(),
-            init_y=y+8,
-            direct=1,
-            camp=self.camp,
-            image=image,
-        )
-        projectile_group.add(bullet)
+        
+        if not self.elite:   
+            rd_next = lambda: random.randint(500, 1300)
+            image = abilities.default_bullet(color=(255, 150, 0))
+            if self.ready_to_fire:
+                self.ready_to_fire = False
+                self.until_next_fire += rd_next()
+            else:
+                return
+            bullet = abilities.Linear(
+                init_x=x+b_shift(),
+                init_y=y+8,
+                direct=1,
+                camp=self.camp,
+                image=image,
+            )
+            projectile_group.add(bullet)
+        else:   
+            rd_next = lambda: random.randint(1000, 1800)
+            if self.ready_to_fire:
+                self.ready_to_fire = False
+                self.until_next_fire += rd_next()
+            else:
+                return
+            image = abilities.default_bullet(
+                        size=(15, 15),
+                        color=(0, 150, 255)
+                    )
+            bullet = abilities.Guilded_bullet(
+                init_x=x+b_shift(),
+                init_y=y+8,
+                camp=self.camp,
+                image=image,
+                target=player
+            )
+            projectile_group.add(bullet)
         return
 
     def set_dest(self, x, y):
@@ -748,7 +789,8 @@ class MobHandle():
             animation_handler=None,
             spawn_interval=1,
             max_amount=10,
-            camp=None
+            camp=None,
+            elite=0    # Probability of elite spawn (1~100)
         ):
         now = pygame.time.get_ticks()
         self.group = group
@@ -757,6 +799,7 @@ class MobHandle():
         self.spawn_interval = spawn_interval * 1000
         self.max_amount = max_amount
         self.camp = camp
+        self.elite = elite
 
     def refresh(self):
         if self.group is None:
@@ -783,6 +826,10 @@ class MobHandle():
         return
 
     def spawn_at(self, x, y):
+        try:
+            channel_mob_spawn.play(sound_mob_spawn)
+        except Exception:
+            pass
         enemy = Mob(
             init_x=x,
             init_y=y,
@@ -795,15 +842,29 @@ class MobHandle():
 
     def spawn_random_pos(self):
         """Spawn a mob at random place without overlap the others."""
+        try:
+            channel_mob_spawn.play(sound_mob_spawn)
+        except Exception:
+            pass
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
         safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
-        enemy = Mob(
-            init_x=safe_x_pos(),
-            init_y=safe_y_pos(),
-            image=new_ufo,
-            attrs=copy.deepcopy(ENEMY_ATTRS),
-            camp=self.camp
-            )
+        if self.elite >= random.randint(0, 100):
+            enemy = Mob(
+                init_x=safe_x_pos(),
+                init_y=safe_y_pos(),
+                image=new_elite,
+                attrs=copy.deepcopy(ENEMY_ATTRS),
+                camp=self.camp,
+                elite=True
+                )
+        else:
+            enemy = Mob(
+                init_x=safe_x_pos(),
+                init_y=safe_y_pos(),
+                image=new_ufo,
+                attrs=copy.deepcopy(ENEMY_ATTRS),
+                camp=self.camp
+                )
         while True:
             # Try until the new sprite's rect does not overlap the existings.
             if not pygame.sprite.spritecollide(
@@ -917,7 +978,8 @@ MobHandler = MobHandle(
     group=sprite_group, # sprite_group
     animation_handler=AnimationHandler,
     max_amount=17,
-    camp=CampID.ENEMY
+    camp=CampID.ENEMY,
+    elite=20
     )
 
 # Elapsed time during initialization.
@@ -1155,10 +1217,16 @@ def Popup_window():
         elif event.type == pygame.KEYDOWN:
             key = event.key
             if key == pygame.K_UP or key == pygame.K_w or key == pygame.K_DOWN or key == pygame.K_s:
-                sound_menu_selecting.play()
+                try:
+                    sound_menu_selecting.play()
+                except Exception:
+                    pass
                 index = (index + 1) % 2
             if key == 13: # 13 means enter
-                sound_menu_confirm.play()
+                try:
+                    sound_menu_confirm.play()
+                except Exception:
+                    pass
                 popup_option_selected = True
             if key == pygame.K_p or key == pygame.K_ESCAPE:
                 popup_option_selected = False
@@ -1388,13 +1456,22 @@ def menu():
         elif event.type == pygame.KEYDOWN:
             key = event.key
             if key == pygame.K_UP or key == pygame.K_w:
-                sound_menu_selecting.play()
+                try:
+                    sound_menu_selecting.play()
+                except Exception:
+                    pass
                 current_index = (current_index + 2) % 3
             if key == pygame.K_DOWN or key == pygame.K_s:
-                sound_menu_selecting.play()
+                try:
+                    sound_menu_selecting.play()
+                except Exception:
+                    pass
                 current_index = (current_index + 1) % 3
             if key == 13: # 13 means enter
-                sound_menu_confirm.play()
+                try:
+                    sound_menu_confirm.play()
+                except Exception:
+                    pass
                 Selected = True
             if key == pygame.K_ESCAPE:
                 current_index = 2

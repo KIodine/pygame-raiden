@@ -5,6 +5,7 @@ import pygame
 import animation
 import resource
 from characters import CampID
+from pygame.math import Vector2
 
 # Notes.--------------------------------------------------------------
 '''
@@ -135,6 +136,82 @@ class Linear(
         self.float_y += (self.speed_y / 60) * self.direct
         self.rect.centery = int(self.float_y)
         return
+
+# Guilded_bullet
+class Guilded_bullet(
+        pygame.sprite.Sprite,
+        animation.NewCore
+    ):
+    """Simple linear projectile.
+    'speed' is px/s.
+    """
+    @_check_init
+    def __init__(
+            self,
+            *,
+            init_x=0,
+            init_y=0,
+            max_velocity=10, # maximum velocity (px per second) 
+            dmg=20, # Add a 'target camp' param?
+            camp=None,
+            shooter=None,
+            image=None,
+            target=None
+        ):
+        master, frames = image
+        pygame.sprite.Sprite.__init__(self)
+        animation.NewCore.__init__(
+            self,
+            master=master,
+            frames=frames
+            )
+
+        now = pygame.time.get_ticks()
+
+        self.dmg = dmg
+        self.shooter = shooter
+        self.camp = camp
+        self.chargable = True
+        self.cooldown = 12**-1 * 1000 # ms -> s
+
+        self.rect.center = init_x, init_y
+
+        # guided bullet initialize
+        self.velocity = Vector2(0, 0) # Initial velocity
+        self.max_velocity = max_velocity
+        self.target = target
+        
+        self.fps = 24
+        self.last_draw = now
+        self.age = 0
+
+        pre_unit_vector = Vector2(0, 0)
+
+    def update(self, current_time):
+        target_loc = Vector2(self.target.rect.center) # target location
+        self.to_next_frame(current_time)
+        vector_self = Vector2(self.rect.center)
+        # increase age
+        self.age += 1
+        if self.age < 50:
+            # calculating unit vector
+            vector = target_loc - vector_self
+            if vector.length() != 0:
+                unit_vector = vector.normalize()
+            else:
+                unit_vector = Vector2(0, 0)
+
+            # adding unit vector to self.velocity
+            if self.velocity.length() < self.max_velocity or (self.pre_unit_vector-unit_vector).length() <= 1:
+                self.velocity += unit_vector
+                self.pre_unit_vector = unit_vector
+
+        # move bullet
+        vector_self += self.velocity
+        self.rect.center = vector_self
+           
+        return
+
 
 '''Note
     Q: If use identifier, how bullet hits?
