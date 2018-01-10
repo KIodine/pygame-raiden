@@ -1067,8 +1067,8 @@ def dev_info(events):
 
 # Main phase.---------------------------------------------------------
 
-aaa = fd.Fade(screen)
-aaa.fade( )
+aaa = fd.Fade(screen, "fioqjq")
+#aaa.fade( )
 while RUN_FLAG:
     clock.tick(FPS)
     now = pygame.time.get_ticks()

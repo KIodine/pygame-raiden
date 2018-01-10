@@ -7,6 +7,7 @@ class Fade():
         self.msjh = "fonts/msjh.ttf"
         self.cap_font = pygame.font.Font(self.msjh, 120)
         self.sub_font = pygame.font.Font(self.msjh, 24)
+        self.FPS = 60
         if caption == None:
             self.cap = "Pyden 2017"
         else:
@@ -19,11 +20,13 @@ class Fade():
         self.sub_x, self.sub_y = self.cap_x, self.cap_y + 100
 
         self.clock = pygame.time.Clock()
-        self.FPS = cfg.FPS
+        #self.FPS = cfg.FPS
         self.BLACK = cfg.color.black
 
-    def show_cap(self, text, x, y, trans):
-        font=self.cap_font
+    def show_cap(self, text, x, y, trans,
+        font=None):
+        if ( font==None):
+            font = self.cap_font
         if not isinstance(text, str):
             try:
                 text = str(text)
@@ -56,12 +59,12 @@ class Fade():
             trans = init_trans
             while fade_in_phase:
                 self.clock.tick(self.FPS)
-                show_cap( # Use functools.partial to shorten.
+                self.show_cap( # Use functools.partial to shorten.
                     self.cap,
                     self.cap_x,
                     self.cap_y,
                     trans=trans)
-                show_cap(
+                self.show_cap(
                     self.sub,
                     self.sub_x,
                     self.sub_y,
@@ -79,12 +82,12 @@ class Fade():
 
             while fade_out_phase:
                 self.clock.tick(self.FPS)
-                show_cap(
+                self.show_cap(
                     self.cap,
                     self.cap_x,
                     self.cap_y,
                     trans=trans)
-                show_cap(
+                self.show_cap(
                     self.sub,
                     self.sub_x,
                     self.sub_y,
