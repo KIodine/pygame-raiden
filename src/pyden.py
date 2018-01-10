@@ -20,6 +20,8 @@ import characters
 import ui
 import particle
 import events
+import fade as fd
+import database
 
 # Pyden 0.43.0
 '''Notes:
@@ -48,7 +50,7 @@ BLACK = cfg.color.black
 
 # Game constants and utilities.---------------------------------------
 
-DEV_MODE = True
+DEV_MODE = False
 RUN_FLAG = True
 PAUSE = False
 KILL_COUNT = 0
@@ -992,7 +994,7 @@ enemy_bullets = abilities.BulletHandle(
 MobHandler = MobHandle(
     group=sprite_group, # sprite_group
     animation_handler=AnimationHandler,
-    max_amount=17,
+    max_amount=10,
     camp=CampID.ENEMY,
     elite=20
     )
@@ -1210,17 +1212,19 @@ def Popup_window():
             if i == index:
                 show_text(
                     option_pause[i],
-                    window['center_x'] - 15 * len(option_pause[i]),
-                    window['center_y'] + 50* i - 25 * len(option_pause),
+                    screen_rect.w/2,
+                    window['center_y'] + 20 + 50* i - 25 * len(option_pause),
                     font=pygame.font.Font(msjh_dir, 45),
-                    color=cfg.color.yellow
+                    color=cfg.color.yellow,
+                    center=True
                     )
             else:
                 show_text(
                     option_pause[i],
-                    window['center_x'] - 15 * len(option_pause[i]),
-                    window['center_y'] + 50* i - 25 * len(option_pause),
-                    font=pygame.font.Font(msjh_dir, 45)
+                    screen_rect.w/2,
+                    window['center_y'] + 20 + 50* i - 25 * len(option_pause),
+                    font=pygame.font.Font(msjh_dir, 45),
+                    center=True
                     )
 
         # Option Select
@@ -1260,9 +1264,50 @@ def Popup_window():
             Selected = False
     pygame.display.flip()
 
-# Game phase function. -----------------------------------------------
+# Level variable.-----------------------------------------------------
+Level = 1
+FADE_FLAG = True
+
+# Game phase function.------------------------------------------------
 def main():
     '''Main game logics.'''
+    global Level
+    global FADE_FLAG
+    global KILL_COUNT
+    
+    # Parameter change by LEVEL, and KILL_COUNT detect to change level.
+    if Level == 1:
+        if FADE_FLAG:
+            fd.Fade(screen, FPS, BLACK, 'Level 1', 'Normal')
+            FADE_FLAG = fd.FADE_FLAG
+        MobHandler.elite = -1 # Never
+        MobHandler.max_amount = 8
+        if KILL_COUNT >= 20:
+            Level += 1
+            FADE_FLAG = True
+    
+    elif Level == 2:
+        if FADE_FLAG:
+            fd.Fade(screen, FPS, BLACK, 'Level 2', 'Middle')
+            FADE_FLAG = fd.FADE_FLAG
+        MobHandler.elite = 20
+        MobHandler.max_amount = 10
+        MobHandler.max_elite = 1
+        if KILL_COUNT >= 40:
+            Level += 1
+            FADE_FLAG = True
+        
+    elif Level == 3:
+        if FADE_FLAG:
+            fd.Fade(screen, FPS, BLACK, 'Level 3', 'Hard')
+            FADE_FLAG = fd.FADE_FLAG
+        MobHandler.elite = 20
+        MobHandler.max_amount = 10
+        MobHandler.max_elite = 2
+        if KILL_COUNT >= 60:
+            # Clear
+            pass
+
     clock.tick(FPS)
     now = pygame.time.get_ticks()
     # Background.-----------------------
@@ -1408,17 +1453,19 @@ def rank():
     '''Showing rank infos.'''
     screen.fill(BLACK)
     show_text(
-        "PYDEN",
-        350,
-        100,
-        font=pygame.font.Font(msjh_dir, 100)
+        "Pyden 2018",
+        screen_rect.w/2,
+        150,
+        font=pygame.font.Font(msjh_dir, 100),
+        center=True
     )
     show_text(
         "Rank",
-        500,
+        screen_rect.w/2,
         200,
         font=pygame.font.Font(msjh_dir, 50),
-        color=cfg.color.yellow
+        color=cfg.color.yellow,
+        center=True
     )
     event = pygame.event.wait()
     if event.type == pygame.QUIT:
@@ -1434,35 +1481,43 @@ def rank():
 
 def menu():
     global Selected
+    global FADE_FLAG
     global RUN_FLAG
     global MENU_FLAG
     global RANK_FLAG
     global GAME_FLAG
     global current_index
     '''The loop that manages start, rank, quit.'''
+    # Fading start.---------------------------------
+    if FADE_FLAG:
+        fd.Fade(screen, FPS, BLACK)
+        FADE_FLAG = fd.FADE_FLAG
     screen.fill(BLACK)
     show_text(
-        "PYDEN",
-        350,
-        100,
-        font=pygame.font.Font(msjh_dir, 100)
+        "Pyden 2018",
+        screen_rect.w/2,
+        150,
+        font=pygame.font.Font(msjh_dir, 100),
+        center=True
     )
     if not Selected:
         for i in range(len(options)):
             if i == current_index:
                 show_text(
                     options[i],
-                    500,
+                    screen_rect.w/2,
                     300 + i*100,
                     font=pygame.font.Font(msjh_dir, 50),
-                    color=cfg.color.yellow
+                    color=cfg.color.yellow,
+                    center=True
                 )
             else:
                 show_text(
                     options[i],
-                    500,
+                    screen_rect.w/2,
                     300 + i*100,
-                    font=pygame.font.Font(msjh_dir, 50)
+                    font=pygame.font.Font(msjh_dir, 50),
+                    center=True
                 )
         # Option Select
         event = pygame.event.wait()
@@ -1496,6 +1551,7 @@ def menu():
         if current_index == 0: # New Game
             print('GAME_FLAG ON')
             GAME_FLAG = True
+            FADE_FLAG = True
         elif current_index == 1: # Rank
             print('RANK_FLAG ON')
             RANK_FLAG = True
