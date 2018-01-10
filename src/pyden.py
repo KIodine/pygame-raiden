@@ -1153,6 +1153,16 @@ def dev_info(events):
         game_info()
         pass
     return
+
+# Renew game.---------------------------------------------------------
+def renew():
+    global MobHandler
+    for hostile in MobHandler.group:
+        if hostile.camp != CampID.PLAYER:
+            MobHandler.group.remove(hostile)
+    for sprite in sprite_group:
+        sprite.attrs[ResID.HP]._to_max()
+
 # Menu.---------------------------------------------------------------
 # Flags for each option of menu
 MENU_FLAG = True
@@ -1262,6 +1272,7 @@ def Popup_window():
             popup_option_selected = False
             PAUSE = not PAUSE
             Selected = False
+            renew()
     pygame.display.flip()
 
 # Level variable.-----------------------------------------------------
