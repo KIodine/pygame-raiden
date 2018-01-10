@@ -496,7 +496,8 @@ class Mob(
             image=None,
             attrs=None,
             camp=None,
-            elite=False
+            elite=False,
+            boss=False
         ):
         master, frames = image
         pygame.sprite.Sprite.__init__(self)
@@ -535,8 +536,9 @@ class Mob(
         self.fps = 24
         self.last_draw = now
 
-        # Elite.------------------------------------------------------
+        # Elite/ Boss.------------------------------------------------
         self.elite = elite
+        self.boss = boss
 
     def draw_hpbar(self):
         hp_ratio = int(self.attrs[ResID.HP].ratio * 100)
@@ -558,23 +560,11 @@ class Mob(
         b_shift = lambda: random.randint(-2, 2)
         x, y = self.rect.midbottom
         
-        if not self.elite:   
-            rd_next = lambda: random.randint(500, 1300)
-            image = abilities.default_bullet(color=(255, 150, 0))
-            if self.ready_to_fire:
-                self.ready_to_fire = False
-                self.until_next_fire += rd_next()
-            else:
-                return
-            bullet = abilities.Linear(
-                init_x=x+b_shift(),
-                init_y=y+8,
-                direct=1,
-                camp=self.camp,
-                image=image,
-            )
-            projectile_group.add(bullet)
-        else:   
+        if self.boss:   
+            '''boss mob attack'''
+            pass
+        elif self.elite:
+            '''elite mob attack'''
             rd_next = lambda: random.randint(1000, 1800)
             if self.ready_to_fire:
                 self.ready_to_fire = False
@@ -591,6 +581,23 @@ class Mob(
                 camp=self.camp,
                 image=image,
                 target=player
+            )
+            projectile_group.add(bullet)
+        else:
+            '''normal mob attack'''
+            rd_next = lambda: random.randint(500, 1300)
+            image = abilities.default_bullet(color=(255, 150, 0))
+            if self.ready_to_fire:
+                self.ready_to_fire = False
+                self.until_next_fire += rd_next()
+            else:
+                return
+            bullet = abilities.Linear(
+                init_x=x+b_shift(),
+                init_y=y+8,
+                direct=1,
+                camp=self.camp,
+                image=image,
             )
             projectile_group.add(bullet)
         return
@@ -790,7 +797,9 @@ class MobHandle():
             spawn_interval=1,
             max_amount=10,
             camp=None,
-            elite=0    # Probability of elite spawn (1~100)
+            elite=0,    # Probability of elite spawn (1~100)
+            max_elite=2,
+            boss=0
         ):
         now = pygame.time.get_ticks()
         self.group = group
@@ -800,6 +809,9 @@ class MobHandle():
         self.max_amount = max_amount
         self.camp = camp
         self.elite = elite
+        self.elite_count=0
+        self.max_elite = max_elite
+        self.boss = boss
 
     def refresh(self):
         if self.group is None:
@@ -848,7 +860,7 @@ class MobHandle():
             pass
         safe_x_pos = lambda: random.randint(100, screen_rect.w-100)
         safe_y_pos = lambda: random.randint(100, screen_rect.h/2)
-        if self.elite >= random.randint(0, 100):
+        if self.elite >= random.randint(0, 100) and self.elite_count < self.max_elite:
             enemy = Mob(
                 init_x=safe_x_pos(),
                 init_y=safe_y_pos(),
@@ -857,6 +869,7 @@ class MobHandle():
                 camp=self.camp,
                 elite=True
                 )
+            self.elite_count += 1
         else:
             enemy = Mob(
                 init_x=safe_x_pos(),
@@ -899,6 +912,8 @@ class MobHandle():
         for hostile in group:
             if hostile.attrs[ResID.HP].current_val <= 0:
                 self.group.remove(hostile)
+                if hostile.elite:
+                    self.elite_count -= 1
                 KILL_COUNT += 1 # Global variable.
                 x, y = hostile.rect.center
                 self.animation_handler.draw_multi_effects(
