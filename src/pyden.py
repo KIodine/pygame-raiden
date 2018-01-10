@@ -20,6 +20,7 @@ import characters
 import ui
 import particle
 import events
+import fade as fd
 
 # Pyden 0.43.0
 '''Notes:
@@ -1065,6 +1066,9 @@ def dev_info(events):
     return
 
 # Main phase.---------------------------------------------------------
+
+aaa = fd.Fade(screen)
+aaa.fade( )
 while RUN_FLAG:
     clock.tick(FPS)
     now = pygame.time.get_ticks()

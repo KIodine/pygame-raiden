@@ -1,10 +1,12 @@
 import pygame
+import config as cfg
+import time
 
 class Fade():
     def __init__(self, screen, caption=None ):
         self.msjh = "fonts/msjh.ttf"
-        self.cap_font = pygame.font.Font(msjh, 120)
-        self.sub_font = pygame.font.Font(msjh, 24)
+        self.cap_font = pygame.font.Font(self.msjh, 120)
+        self.sub_font = pygame.font.Font(self.msjh, 24)
         if caption == None:
             self.cap = "Pyden 2017"
         else:
@@ -13,10 +15,12 @@ class Fade():
         self.screen = screen
         screen_rect = screen.get_rect()
 
-        cap_x, cap_y = screen_rect.center
-        sub_x, sub_y = cap_x, cap_y + 100
+        self.cap_x, self.cap_y = screen_rect.center
+        self.sub_x, self.sub_y = self.cap_x, self.cap_y + 100
 
-        clock = pygame.time.Clock()
+        self.clock = pygame.time.Clock()
+        self.FPS = cfg.FPS
+        self.BLACK = cfg.color.black
 
     def show_cap(self, text, x, y, trans):
         font=self.cap_font
@@ -31,65 +35,69 @@ class Fade():
         self.screen.blit(text, (x - text_x / 2, y - text_y / 2))
         print(trans)
 
-    play_caption = True
+        return
 
-    stay_interval = 1.5
+    def fade(self):
 
-    init_trans = 0
-    fade_in_speed = 9
-    fade_out_speed = 15
+        play_caption = True
 
-    # DO NOT TOUCH, this is the sign for animation controlling.
-    fade_in_phase = True
-    fade_out_phase = False
+        stay_interval = 1.5
+
+        init_trans = 0
+        fade_in_speed = 9
+        fade_out_speed = 15
+
+        # DO NOT TOUCH, this is the sign for animation controlling.
+        fade_in_phase = True
+        fade_out_phase = False
 
 
-    if play_caption:
-        trans = init_trans
-        while fade_in_phase:
-            clock.tick(FPS)
-            show_cap( # Use functools.partial to shorten.
-                cap,
-                cap_x,
-                cap_y,
-                trans=trans)
-            show_cap(
-                sub,
-                sub_x,
-                sub_y,
-                trans=trans,
-                font=sub_font
-                )
-            trans += fade_in_speed
-            if trans >= 255:
-                trans = 255
-                fade_in_phase = False
-                fade_out_phase = True
+        if play_caption:
+            trans = init_trans
+            while fade_in_phase:
+                self.clock.tick(self.FPS)
+                show_cap( # Use functools.partial to shorten.
+                    self.cap,
+                    self.cap_x,
+                    self.cap_y,
+                    trans=trans)
+                show_cap(
+                    self.sub,
+                    self.sub_x,
+                    self.sub_y,
+                    trans=trans,
+                    font=self.sub_font
+                    )
+                trans += fade_in_speed
+                if trans >= 255:
+                    trans = 255
+                    fade_in_phase = False
+                    fade_out_phase = True
+                pygame.display.flip()
+                    
+            time.sleep(stay_interval) # Pause gameplay.
+
+            while fade_out_phase:
+                self.clock.tick(self.FPS)
+                show_cap(
+                    self.cap,
+                    self.cap_x,
+                    self.cap_y,
+                    trans=trans)
+                show_cap(
+                    self.sub,
+                    self.sub_x,
+                    self.sub_y,
+                    trans=trans,
+                    font=self.sub_font
+                    )
+                trans -= fade_out_speed
+                if trans <= 0:
+                    trans = 0
+                    fade_out_phase = False
+                pygame.display.flip()
+            self.screen.fill(self.BLACK)
             pygame.display.flip()
-                
-        time.sleep(stay_interval) # Pause gameplay.
-
-        while fade_out_phase:
-            clock.tick(FPS)
-            show_cap(
-                cap,
-                cap_x,
-                cap_y,
-                trans=trans)
-            show_cap(
-                sub,
-                sub_x,
-                sub_y,
-                trans=trans,
-                font=sub_font
-                )
-            trans -= fade_out_speed
-            if trans <= 0:
-                trans = 0
-                fade_out_phase = False
-            pygame.display.flip()
-        screen.fill(BLACK)
-        pygame.display.flip()
-        time.sleep(0.7)
-        
-        print("CAP SHOWN")
+            time.sleep(0.7)
+            
+            print("CAP SHOWN")
