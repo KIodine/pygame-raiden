@@ -83,6 +83,8 @@ sound_shoot = pygame.mixer.Sound('music/lasergun.wav')
 sound_menu_selecting = pygame.mixer.Sound('music/menu_selecting.wav')
 sound_menu_confirm = pygame.mixer.Sound('music/menu_confirm.wav')
 sound_mob_spawn = pygame.mixer.Sound('music/mob_spawn.wav')
+sound_dead = pygame.mixer.Sound('music/dead_sound.wav')
+sound_win = pygame.mixer.Sound('music/win_sound.wav')
 
 channel_shoot = pygame.mixer.Channel(0)
 channel_mob_spawn = pygame.mixer.Channel(1)
@@ -1502,12 +1504,25 @@ def main():
     if End_detail['Flag']:
         End_detail['Flag'] = False
         if End_detail['Win']:
-           fd.Fade(screen, FPS, BLACK, 'Win', 'Time: ' + str(play_time/1000) + ' sec')
+            GAME_FLAG = False
+            MENU_FLAG = True
+            Selected = False
+            fd.Fade(screen,
+                   FPS,
+                   BLACK,
+                   cap='Win',
+                   sub='Time: ' + str(play_time/1000) + ' sec',
+                   sound=sound_win)
         else:
             GAME_FLAG = False
             MENU_FLAG = True
             Selected = False
-            fd.Fade(screen, FPS, BLACK, 'Lose', 'Time: ' + str(play_time/1000) + ' sec')
+            fd.Fade(screen,
+                    FPS,
+                    BLACK,
+                    cap='Lose',
+                    sub='Time: ' + str(play_time/1000) + ' sec',
+                    sound=sound_dead)
         FADE_FLAG = fd.FADE_FLAG
     
     pygame.display.flip()
