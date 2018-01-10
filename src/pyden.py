@@ -1160,8 +1160,7 @@ def renew():
     for hostile in MobHandler.group:
         if hostile.camp != CampID.PLAYER:
             MobHandler.group.remove(hostile)
-    for sprite in sprite_group:
-        sprite.attrs[ResID.HP]._to_max()
+    player.attrs[ResID.HP]._to_max()
 
 # Menu.---------------------------------------------------------------
 # Flags for each option of menu
