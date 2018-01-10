@@ -16,3 +16,6 @@ src/music.zip
 src/music/desktop.ini
 *.ttc
 src/build/pyden
+src/images
+src/music
+src/fonts
