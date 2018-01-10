@@ -1318,7 +1318,7 @@ def main():
             FADE_FLAG = fd.FADE_FLAG
         MobHandler.elite = -1 # Never
         MobHandler.max_amount = 8
-        if KILL_COUNT >= 1:
+        if KILL_COUNT >= 20:
             renew()
             Level += 1
             FADE_FLAG = True
@@ -1331,7 +1331,7 @@ def main():
         MobHandler.elite = 20
         MobHandler.max_amount = 10
         MobHandler.max_elite = 1
-        if KILL_COUNT >= 2:
+        if KILL_COUNT >= 40:
             renew()
             Level += 1
             FADE_FLAG = True
@@ -1344,7 +1344,7 @@ def main():
         MobHandler.elite = 20
         MobHandler.max_amount = 10
         MobHandler.max_elite = 2
-        if KILL_COUNT >= 3:
+        if KILL_COUNT >= 60:
             # Clear
             renew()
             TIME_FLAG = False
