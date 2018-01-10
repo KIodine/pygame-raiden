@@ -5,6 +5,7 @@ class DataBase():
     def __init__(self, name="score.db", column=""):
         self.conn = sqlite3.connect( name )
         self.cursor = self.conn.cursor()
+        self.scores = None
     
     def SelectData(self):
         order = "CREATE TABLE IF NOT EXISTS Score( name TEXT, time FLOAT)"
