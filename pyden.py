@@ -21,8 +21,7 @@ import ui
 import particle
 import events
 import fade as fd
-import database as db
-import tkinter as tkt
+import database
 
 # Pyden 0.43.0
 '''Notes:
@@ -84,8 +83,6 @@ sound_shoot = pygame.mixer.Sound('music/lasergun.wav')
 sound_menu_selecting = pygame.mixer.Sound('music/menu_selecting.wav')
 sound_menu_confirm = pygame.mixer.Sound('music/menu_confirm.wav')
 sound_mob_spawn = pygame.mixer.Sound('music/mob_spawn.wav')
-sound_dead = pygame.mixer.Sound('music/dead_sound.wav')
-sound_win = pygame.mixer.Sound('music/win_sound.wav')
 
 channel_shoot = pygame.mixer.Channel(0)
 channel_mob_spawn = pygame.mixer.Channel(1)
@@ -183,7 +180,6 @@ new_flash = animation.sequential_loader(
     h=15
 )
 
-DB = db.DataBase()
 
 # Init custom modules.------------------------------------------------
 
@@ -1168,11 +1164,6 @@ def renew():
     for hostile in MobHandler.group:
         if hostile.camp != CampID.PLAYER:
             MobHandler.group.remove(hostile)
-<<<<<<< HEAD
-    #for sprite in sprite_group:
-    #sprite.attrs[ResID.HP]._to_max()
-=======
->>>>>>> e13894ed7a2a0bf69ade33766427c0d0aa17cc35
     player.attrs[ResID.HP]._to_max()
 
 # Menu.---------------------------------------------------------------
@@ -1505,31 +1496,19 @@ def main():
     # Time Count.
     if pygame.time.get_ticks() >= pre_time and (TIME_FLAG or (not PAUSE)):
         play_time += (pygame.time.get_ticks() - pre_time)
+        print(play_time)
         pre_time = pygame.time.get_ticks()
 
     # Check end detail if game end
     if End_detail['Flag']:
         End_detail['Flag'] = False
         if End_detail['Win']:
-            GAME_FLAG = False
-            MENU_FLAG = True
-            Selected = False
-            fd.Fade(screen,
-                   FPS,
-                   BLACK,
-                   cap='Win',
-                   sub='Time: ' + str(play_time/1000) + ' sec',
-                   sound=sound_win)
+           fd.Fade(screen, FPS, BLACK, 'Win', 'Time: ' + str(play_time/1000) + ' sec')
         else:
             GAME_FLAG = False
             MENU_FLAG = True
             Selected = False
-            fd.Fade(screen,
-                    FPS,
-                    BLACK,
-                    cap='Lose',
-                    sub='Time: ' + str(play_time/1000) + ' sec',
-                    sound=sound_dead)
+            fd.Fade(screen, FPS, BLACK, 'Lose', 'Time: ' + str(play_time/1000) + ' sec')
         FADE_FLAG = fd.FADE_FLAG
     
     pygame.display.flip()
@@ -1542,45 +1521,21 @@ def rank():
     global Selected
     '''Showing rank infos.'''
     screen.fill(BLACK)
-    """show_text(
+    show_text(
         "Pyden 2018",
         screen_rect.w/2,
         150,
         font=pygame.font.Font(msjh_dir, 100),
         center=True
-    )"""
+    )
     show_text(
         "Rank",
         screen_rect.w/2,
-        100,
+        200,
         font=pygame.font.Font(msjh_dir, 50),
-        color=cfg.color.white,
+        color=cfg.color.yellow,
         center=True
     )
-    
-    #print("jeoifjoeao")
-    scores = DB.GetData()
-    i = 1
-    for item in scores:
-        if i<=9:
-            #print("a")
-            if i%10 == 1:
-                ordinal = 'st'
-            elif i%10 == 2:
-                ordinal = 'nd'
-            elif i%10 == 3:
-                ordinal = 'rd'
-            else:
-                ordinal = "th"
-            show_text(
-                str(i)+ordinal+"   "+item[0]+"           "+str(item[1])+'sec',
-                screen_rect.w/2,
-                100 + i * 50,
-                font=pygame.font.Font(msjh_dir, 50),
-                color=cfg.color.yellow,
-                center=True
-            )
-            i = i+1
     event = pygame.event.wait()
     if event.type == pygame.QUIT:
         RUN_FLAG = False
@@ -1664,18 +1619,12 @@ def menu():
     else: # Press Enter to selected
         MENU_FLAG = False
         if current_index == 0: # New Game
-<<<<<<< HEAD
-            Level = 1
-=======
             play_time = 0
             Level = 1
             TIME_FLAG = True
->>>>>>> e13894ed7a2a0bf69ade33766427c0d0aa17cc35
             KILL_COUNT = 0
             print('GAME_FLAG ON')
             GAME_FLAG = True
-            start_time = time.time()
-            total_time = 0
             FADE_FLAG = True
         elif current_index == 1: # Rank
             print('RANK_FLAG ON')
@@ -1687,12 +1636,6 @@ def menu():
 
     return
 
-def Game_Data( mytime ):
-    name = None
-    while name == None:
-        name = tkt.simpledialog("暱稱", "把暱稱交出來喔")
-    DB.InsertData( name, mytime )
-    pass
 # Main phase.---------------------------------------------------------
 while RUN_FLAG:
     # Menu ==========================================
