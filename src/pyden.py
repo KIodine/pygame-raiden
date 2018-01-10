@@ -21,7 +21,8 @@ import ui
 import particle
 import events
 import fade as fd
-import database
+import database as db
+import tkinter as tkt
 
 # Pyden 0.43.0
 '''Notes:
@@ -180,6 +181,7 @@ new_flash = animation.sequential_loader(
     h=15
 )
 
+DB = db.DataBase()
 
 # Init custom modules.------------------------------------------------
 
@@ -1160,8 +1162,9 @@ def renew():
     for hostile in MobHandler.group:
         if hostile.camp != CampID.PLAYER:
             MobHandler.group.remove(hostile)
-    for sprite in sprite_group:
-        sprite.attrs[ResID.HP]._to_max()
+    #for sprite in sprite_group:
+    #sprite.attrs[ResID.HP]._to_max()
+    player.attrs[ResID.HP]._to_max()
 
 # Menu.---------------------------------------------------------------
 # Flags for each option of menu
@@ -1463,21 +1466,45 @@ def rank():
     global Selected
     '''Showing rank infos.'''
     screen.fill(BLACK)
-    show_text(
+    """show_text(
         "Pyden 2018",
         screen_rect.w/2,
         150,
         font=pygame.font.Font(msjh_dir, 100),
         center=True
-    )
+    )"""
     show_text(
         "Rank",
         screen_rect.w/2,
-        200,
+        100,
         font=pygame.font.Font(msjh_dir, 50),
-        color=cfg.color.yellow,
+        color=cfg.color.white,
         center=True
     )
+    
+    #print("jeoifjoeao")
+    scores = DB.GetData()
+    i = 1
+    for item in scores:
+        if i<=9:
+            #print("a")
+            if i%10 == 1:
+                ordinal = 'st'
+            elif i%10 == 2:
+                ordinal = 'nd'
+            elif i%10 == 3:
+                ordinal = 'rd'
+            else:
+                ordinal = "th"
+            show_text(
+                str(i)+ordinal+"   "+item[0]+"           "+str(item[1])+'sec',
+                screen_rect.w/2,
+                100 + i * 50,
+                font=pygame.font.Font(msjh_dir, 50),
+                color=cfg.color.yellow,
+                center=True
+            )
+            i = i+1
     event = pygame.event.wait()
     if event.type == pygame.QUIT:
         RUN_FLAG = False
@@ -1560,8 +1587,12 @@ def menu():
     else: # Press Enter to selected
         MENU_FLAG = False
         if current_index == 0: # New Game
+            Level = 1
+            KILL_COUNT = 0
             print('GAME_FLAG ON')
             GAME_FLAG = True
+            start_time = time.time()
+            total_time = 0
             FADE_FLAG = True
         elif current_index == 1: # Rank
             print('RANK_FLAG ON')
@@ -1573,6 +1604,12 @@ def menu():
 
     return
 
+def Game_Data( mytime ):
+    name = None
+    while name == None:
+        name = tkt.simpledialog("暱稱", "把暱稱交出來喔")
+    DB.InsertData( name, mytime )
+    pass
 # Main phase.---------------------------------------------------------
 while RUN_FLAG:
     # Menu ==========================================

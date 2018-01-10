@@ -8,21 +8,24 @@ class DataBase():
         self.scores = None
     
     def SelectData(self):
-        order = "CREATE TABLE IF NOT EXISTS Score( name TEXT, time FLOAT)"
+        order = "CREATE TABLE IF NOT EXISTS Rank( name TEXT, time FLOAT )"
         self.cursor.execute( order )
-        self.scores = self.cursor.execute("SELECT * FROM player order by time")
         self.conn.commit()
-
-        return
-
-    def PrintData(self):
-        for item in self.scores:
-            print( item )
+        self.scores = self.cursor.execute("SELECT * FROM Rank order by time")
         
+
         return
+
+    def GetData(self):
+        self.SelectData()
+        #for item in self.scores:
+            #print("?")
+            #print( item )
+        
+        return self.scores
 
     def InsertData(self, name, time):
-        sql = "insert into player (name, time) values ('%s', '%s')" % (name, time)
+        sql = "insert into Rank (name, time) values ('%s', '%s')" % (name, time)
         self.cursor.execute( sql )
         self.conn.commit()
         return
