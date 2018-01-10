@@ -1067,7 +1067,7 @@ def dev_info(events):
 
 # Main phase.---------------------------------------------------------
 
-aaa = fd.Fade(screen, "fioqjq")
+fd.Fade(screen , FPS, BLACK)
 #aaa.fade( )
 while RUN_FLAG:
     clock.tick(FPS)
