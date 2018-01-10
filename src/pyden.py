@@ -188,6 +188,10 @@ assert abilities.is_initiated()
 
 EVENT_HANDLER = events.EventHandler(clock)
 
+# Init time.----------------------------------------------------------
+play_time = 0
+pre_time = -1
+
 # Functions.----------------------------------------------------------
 # Add a 'show_multiline' function?
 def show_text(
@@ -1187,6 +1191,7 @@ def Popup_window():
     global MENU_FLAG
     global index
     global Selected
+    global pre_time
     # Option
     option_pause = [
         'resume',
@@ -1240,6 +1245,7 @@ def Popup_window():
         event = pygame.event.wait()
         if event.type == pygame.QUIT:
             popup_option_selected = False
+            pre_time = pygame.time.get_ticks()
             PAUSE = not PAUSE
             RUN_FLAG = False
         elif event.type == pygame.KEYDOWN:
@@ -1258,17 +1264,20 @@ def Popup_window():
                 popup_option_selected = True
             if key == pygame.K_p or key == pygame.K_ESCAPE:
                 popup_option_selected = False
+                pre_time = pygame.time.get_ticks()
                 PAUSE = not PAUSE
                 print("<ACTION>")
     else: # Press Enter to selected
         if index == 0:
             popup_option_selected = False
+            pre_time = pygame.time.get_ticks()
             PAUSE = not PAUSE
             print("<ACTION>")
         elif index == 1:
             GAME_FLAG = False
             MENU_FLAG = True
             popup_option_selected = False
+            pre_time = pygame.time.get_ticks()
             PAUSE = not PAUSE
             Selected = False
             renew()
@@ -1277,18 +1286,27 @@ def Popup_window():
 # Level variable.-----------------------------------------------------
 Level = 1
 FADE_FLAG = True
+TIME_FLAG = True
+End_detail = {'Flag': False, 'Win': True}
 
 # Game phase function.------------------------------------------------
 def main():
     '''Main game logics.'''
     global Level
+    global GAME_FLAG
+    global MENU_FLAG
     global FADE_FLAG
-    global KILL_COUNT
-    
+    global Selected
+    global End_detail
+    global play_time
+    global pre_time
+    global TIME_FLAG
+
     # Parameter change by LEVEL, and KILL_COUNT detect to change level.
     if Level == 1:
         if FADE_FLAG:
-            fd.Fade(screen, FPS, BLACK, 'Level 1', 'Normal')
+            fd.Fade(screen, FPS, BLACK, 'Level 1', 'Start!')
+            pre_time = pygame.time.get_ticks()
             FADE_FLAG = fd.FADE_FLAG
         MobHandler.elite = -1 # Never
         MobHandler.max_amount = 8
@@ -1298,7 +1316,8 @@ def main():
     
     elif Level == 2:
         if FADE_FLAG:
-            fd.Fade(screen, FPS, BLACK, 'Level 2', 'Middle')
+            fd.Fade(screen, FPS, BLACK, 'Level 2', 'Time: ' + str(play_time/1000) + ' sec')
+            pre_time = pygame.time.get_ticks()
             FADE_FLAG = fd.FADE_FLAG
         MobHandler.elite = 20
         MobHandler.max_amount = 10
@@ -1309,15 +1328,29 @@ def main():
         
     elif Level == 3:
         if FADE_FLAG:
-            fd.Fade(screen, FPS, BLACK, 'Level 3', 'Hard')
+            fd.Fade(screen, FPS, BLACK, 'Level 3', 'Time: ' + str(play_time/1000) + ' sec')
+            pre_time = pygame.time.get_ticks()
             FADE_FLAG = fd.FADE_FLAG
         MobHandler.elite = 20
         MobHandler.max_amount = 10
         MobHandler.max_elite = 2
         if KILL_COUNT >= 60:
             # Clear
-            pass
+            TIME_FLAG = False
+            Level = 0 # Prevent from fading again
+            End_detail['Flag'] = True
+            End_detail['Win'] = True
+            FADE_FLAG = True
 
+    # Close the game and show rank if player's dead
+    if player.attrs[ResID.HP].last_val <= 0 and Level != 0:
+        TIME_FLAG = False
+        End_detail['Flag'] = True
+        End_detail['Win'] = False
+        Level = 0 # Prevent from fading again
+        FADE_FLAG = True
+    
+    #-----------------------------------------------------
     clock.tick(FPS)
     now = pygame.time.get_ticks()
     # Background.-----------------------
@@ -1445,13 +1478,38 @@ def main():
         color = cfg.color.white
     show_text(
         f"KILLED: {KILL_COUNT}",
-        400,
+        screen_rect.w/2,
         550,
-        color=color
+        color=color,
+        center=True
+        )
+    show_text(
+        f"TIME: {play_time/1000} sec",
+        screen_rect.w/2,
+        600,
+        color=color,
+        center=True
         )
     if DEV_MODE:
         draw_boxes()
 
+    # Time Count.
+    if pygame.time.get_ticks() >= pre_time and (TIME_FLAG or (not PAUSE)):
+        play_time += (pygame.time.get_ticks() - pre_time)
+        pre_time = pygame.time.get_ticks()
+
+    # Check end detail if game end
+    if End_detail['Flag']:
+        End_detail['Flag'] = False
+        if End_detail['Win']:
+           fd.Fade(screen, FPS, BLACK, 'Win', 'Time: ' + str(play_time/1000) + ' sec')
+        else:
+            GAME_FLAG = False
+            MENU_FLAG = True
+            Selected = False
+            fd.Fade(screen, FPS, BLACK, 'Lose', 'Time: ' + str(play_time/1000) + ' sec')
+        FADE_FLAG = fd.FADE_FLAG
+    
     pygame.display.flip()
     return
 
@@ -1497,6 +1555,7 @@ def menu():
     global RANK_FLAG
     global GAME_FLAG
     global current_index
+    global play_time
     '''The loop that manages start, rank, quit.'''
     # Fading start.---------------------------------
     if FADE_FLAG:
@@ -1559,6 +1618,10 @@ def menu():
     else: # Press Enter to selected
         MENU_FLAG = False
         if current_index == 0: # New Game
+            play_time = 0
+            Level = 1
+            TIME_FLAG = True
+            KILL_COUNT = 0
             print('GAME_FLAG ON')
             GAME_FLAG = True
             FADE_FLAG = True
