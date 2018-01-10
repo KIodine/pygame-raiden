@@ -9,6 +9,8 @@ import weakref # Analyzing object lifespan.
 import logging
 from collections import deque, namedtuple
 from enum import Enum
+import tkinter as tk
+from tkinter import simpledialog
 # Third-party.--------------------------------------------------------
 import pygame
 # Custom.-------------------------------------------------------------
@@ -22,7 +24,7 @@ import particle
 import events
 import fade as fd
 import database as db
-import tkinter as tkt
+
 
 # Pyden 0.43.0
 '''Notes:
@@ -1168,11 +1170,8 @@ def renew():
     for hostile in MobHandler.group:
         if hostile.camp != CampID.PLAYER:
             MobHandler.group.remove(hostile)
-<<<<<<< HEAD
     #for sprite in sprite_group:
     #sprite.attrs[ResID.HP]._to_max()
-=======
->>>>>>> e13894ed7a2a0bf69ade33766427c0d0aa17cc35
     player.attrs[ResID.HP]._to_max()
 
 # Menu.---------------------------------------------------------------
@@ -1319,7 +1318,8 @@ def main():
             FADE_FLAG = fd.FADE_FLAG
         MobHandler.elite = -1 # Never
         MobHandler.max_amount = 8
-        if KILL_COUNT >= 20:
+        if KILL_COUNT >= 1:
+            renew()
             Level += 1
             FADE_FLAG = True
     
@@ -1331,7 +1331,8 @@ def main():
         MobHandler.elite = 20
         MobHandler.max_amount = 10
         MobHandler.max_elite = 1
-        if KILL_COUNT >= 40:
+        if KILL_COUNT >= 2:
+            renew()
             Level += 1
             FADE_FLAG = True
         
@@ -1343,8 +1344,9 @@ def main():
         MobHandler.elite = 20
         MobHandler.max_amount = 10
         MobHandler.max_elite = 2
-        if KILL_COUNT >= 60:
+        if KILL_COUNT >= 3:
             # Clear
+            renew()
             TIME_FLAG = False
             Level = 0 # Prevent from fading again
             End_detail['Flag'] = True
@@ -1511,15 +1513,16 @@ def main():
     if End_detail['Flag']:
         End_detail['Flag'] = False
         if End_detail['Win']:
-            GAME_FLAG = False
-            MENU_FLAG = True
-            Selected = False
             fd.Fade(screen,
                    FPS,
                    BLACK,
                    cap='Win',
                    sub='Time: ' + str(play_time/1000) + ' sec',
                    sound=sound_win)
+            GAME_FLAG = False
+            MENU_FLAG = True
+            Selected = False
+            Game_Data(play_time/1000)
         else:
             GAME_FLAG = False
             MENU_FLAG = True
@@ -1562,7 +1565,7 @@ def rank():
     scores = DB.GetData()
     i = 1
     for item in scores:
-        if i<=9:
+        if i<9:
             #print("a")
             if i%10 == 1:
                 ordinal = 'st'
@@ -1572,9 +1575,28 @@ def rank():
                 ordinal = 'rd'
             else:
                 ordinal = "th"
+            # index
             show_text(
-                str(i)+ordinal+"   "+item[0]+"           "+str(item[1])+'sec',
+                str(i)+ordinal,
+                screen_rect.w/4,
+                100 + i * 50,
+                font=pygame.font.Font(msjh_dir, 50),
+                color=cfg.color.yellow,
+                center=True
+            )
+            # Name
+            show_text(
+                item[0],
                 screen_rect.w/2,
+                100 + i * 50,
+                font=pygame.font.Font(msjh_dir, 50),
+                color=cfg.color.yellow,
+                center=True
+            )
+            # Time
+            show_text(
+                str(item[1]),
+                screen_rect.w*3/4,
                 100 + i * 50,
                 font=pygame.font.Font(msjh_dir, 50),
                 color=cfg.color.yellow,
@@ -1664,18 +1686,12 @@ def menu():
     else: # Press Enter to selected
         MENU_FLAG = False
         if current_index == 0: # New Game
-<<<<<<< HEAD
-            Level = 1
-=======
             play_time = 0
             Level = 1
             TIME_FLAG = True
->>>>>>> e13894ed7a2a0bf69ade33766427c0d0aa17cc35
             KILL_COUNT = 0
             print('GAME_FLAG ON')
             GAME_FLAG = True
-            start_time = time.time()
-            total_time = 0
             FADE_FLAG = True
         elif current_index == 1: # Rank
             print('RANK_FLAG ON')
@@ -1689,10 +1705,13 @@ def menu():
 
 def Game_Data( mytime ):
     name = None
-    while name == None:
-        name = tkt.simpledialog("暱稱", "把暱稱交出來喔")
+    application_window = tk.Tk()
+    #while name == None:
+    name = simpledialog.askstring("暱稱", "把暱稱交出來喔", parent=application_window)
+    
     DB.InsertData( name, mytime )
-    pass
+
+    return
 # Main phase.---------------------------------------------------------
 while RUN_FLAG:
     # Menu ==========================================
