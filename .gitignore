@@ -10,6 +10,9 @@
 *.mid
 *.pyc
 *.json
+src/images
+src/music
+src/fonts
 src/images.zip
 src/fonts.zip
 src/music.zip
