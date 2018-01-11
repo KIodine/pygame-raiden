@@ -1355,6 +1355,7 @@ def main():
 
     # Close the game and show rank if player's dead
     if player.attrs[ResID.HP].last_val <= 0 and Level != 0:
+        renew()
         TIME_FLAG = False
         End_detail['Flag'] = True
         End_detail['Win'] = False
@@ -1524,15 +1525,15 @@ def main():
             Selected = False
             Game_Data(play_time/1000)
         else:
-            GAME_FLAG = False
-            MENU_FLAG = True
-            Selected = False
             fd.Fade(screen,
                     FPS,
                     BLACK,
                     cap='Lose',
                     sub='Time: ' + str(play_time/1000) + ' sec',
                     sound=sound_dead)
+            GAME_FLAG = False
+            MENU_FLAG = True
+            Selected = False
         FADE_FLAG = fd.FADE_FLAG
     
     pygame.display.flip()
@@ -1624,6 +1625,8 @@ def menu():
     global GAME_FLAG
     global current_index
     global play_time
+    global KILL_COUNT
+    global Level
     '''The loop that manages start, rank, quit.'''
     # Fading start.---------------------------------
     if FADE_FLAG:
